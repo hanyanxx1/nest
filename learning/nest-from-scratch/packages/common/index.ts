@@ -1,3 +1,4 @@
-export { Module } from './decorators/modules/module.decorator.js';
-export type { ModuleMetadata } from './interfaces/modules/module-metadata.interface.js';
-export { Controller } from './decorators/core/controller.decorator.js';
+import 'reflect-metadata';
+export * from './decorators/index.js';
+export * from './enums/index.js';
+export type { ModuleMetadata } from './interfaces/index.js';

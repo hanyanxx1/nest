@@ -3,15 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
     }
   },
   "dependencies": {
-    "@nestjs/common": "0.1.0"
+    "@nestjs/common": "0.1.0",
+    "express": "^5.3.0"
+  },
+  "scripts": {
+    "build": "tsc --target ES2023 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --experimentalDecorators --rootDir .. --outDir dist --declaration --declarationMap --sourceMap index.ts nest-factory.ts nest-application.ts router/router-explorer.ts router/router-response-controller.ts ../platform-express/adapters/express-adapter.ts"
   }
 }
