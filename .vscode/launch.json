@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "docs-app：直接调试手写 Nest TS",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/learning/docs-app/scripts/start-source.mjs",
+      "runtimeArgs": [
+        "--import",
+        "./scripts/register-nest-source.mjs",
+        "--enable-source-maps"
+      ],
+      "cwd": "${workspaceFolder}/learning/docs-app",
+      "console": "integratedTerminal",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

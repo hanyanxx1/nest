@@ -18,6 +18,10 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,
-    "types": ["vitest/globals", "node"],
+    "paths": {
+      "@nestjs/common": ["./@nest/common/index.ts"],
+      "@nestjs/core": ["./@nest/core/index.ts"]
+    },
+    "types": ["vitest/globals", "node"]
   }
 }
