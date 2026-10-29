@@ -10,3 +10,5 @@ export const INJECTABLE_WATERMARK = '__injectable__';
  * 格式：{ [paramIndex]: { decorator: 'Res', options: {...} } }
  */
 export const PARAM_DECORATORS_METADATA = '__param_decorators__';
+
+export const HTTP_CODE_METADATA = '__httpCode__';

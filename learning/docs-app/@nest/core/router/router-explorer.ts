@@ -17,6 +17,7 @@ import {
   METHOD_METADATA,
   PATH_METADATA,
   PARAM_DECORATORS_METADATA,
+  HTTP_CODE_METADATA,
 } from '../../common/constants.js';
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 // 路由命中后，把控制器方法的返回值交给统一的响应委托层。
@@ -541,10 +542,17 @@ export class RouterExplorer {
          * 将控制器返回值交给 RouterResponseController，再由它委托给 ExpressAdapter.reply()。
          * responseController.apply() 会检查返回值的类型，并根据类型决定如何序列化和发送。
          */
+        const httpCode: number | undefined = Reflect.getMetadata(
+          HTTP_CODE_METADATA,
+          route.callback,
+        );
+        const statusCode =
+          httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
+
         return responseController.apply(
           result,
           response,
-          route.method === RequestMethod.POST ? 201 : undefined,
+          statusCode,
           route.callback,
         );
       });

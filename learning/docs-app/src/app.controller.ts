@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Res } from '@nestjs/common';
+import { Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AppService } from './app.service.js';
 
@@ -84,6 +84,7 @@ export class AppController {
   }
 
   @Post('cats')
+  @HttpCode(202)
   createCat(): { name: string } {
     return { name: 'Mimi' };
   }
