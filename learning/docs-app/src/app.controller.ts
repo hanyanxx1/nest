@@ -1,4 +1,4 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AppService } from './app.service.js';
 
@@ -81,5 +81,10 @@ export class AppController {
   ): { name: string }[] {
     response.status(202);
     return [{ name: 'Mimi' }];
+  }
+
+  @Post('cats')
+  createCat(): { name: string } {
+    return { name: 'Mimi' };
   }
 }

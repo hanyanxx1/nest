@@ -7,7 +7,7 @@
  * 3. getRoutes() - 组合控制器前缀和方法路径，生成最终的完整路由。
  * 4. registerRoutes() - 把生成的路由注册到 Express 适配器。
  *
- * 当前实现只支持 GET 方法。
+ * 当前实现支持 GET 和 POST 方法。
  */
 
 // Controller 装饰器用 Reflect 写入元数据；这里需要 reflect-metadata 才能读取这些数据。
@@ -444,27 +444,37 @@ export class RouterExplorer {
    *     6. responseController.apply(undefined, response) 检测到已处理，不再发送
    *
    * 当前限制：
-   * - 只支持 GET 方法；若遇到 POST/PUT/DELETE 等会明确抛错。
+   * - 只支持 GET 和 POST 方法；其他 HTTP 方法会明确抛错。
    * - 只支持 @Res()/@Req() 装饰器；@Param/@Query/@Body 等暂不实现。
    * - 暂不支持中间件、路由守卫等高级功能。
    */
   registerRoutes(
     controller: object,
-    registerGet: (path: string, handler: Function) => unknown,
+    registerRoute: {
+      get: (path: string, handler: Function) => unknown;
+      post: (path: string, handler: Function) => unknown;
+    },
     responseController: RouterResponseController,
   ): void {
     // 例如得到 { method: RequestMethod.GET, path: '/cats/message', ... } 的路由描述。
     const routes = this.getRoutes(controller);
 
     for (const route of routes) {
-      // 当前手写适配器只实现了 GET 注册；其他方法暂不支持，明确报错。
-      if (route.method !== RequestMethod.GET) {
+      // 当前手写适配器只实现了 GET 和 POST 注册；其他方法暂不支持，明确报错。
+      const register =
+        route.method === RequestMethod.GET
+          ? registerRoute.get
+          : route.method === RequestMethod.POST
+            ? registerRoute.post
+            : undefined;
+
+      if (!register) {
         throw new Error(`当前路由注册器暂不支持 HTTP 方法：${route.method}`);
       }
 
       // 让平台适配器注册真实 HTTP 路由；请求到达时，handler 才会执行。
       // 这个 async handler 是对 Express 路由的封装。
-      registerGet(route.path, async (request: unknown, response: unknown) => {
+      register(route.path, async (request: unknown, response: unknown) => {
         /**
          * 第一阶段：提取方法上的参数装饰器元数据
          *
@@ -534,7 +544,7 @@ export class RouterExplorer {
         return responseController.apply(
           result,
           response,
-          undefined,
+          route.method === RequestMethod.POST ? 201 : undefined,
           route.callback,
         );
       });

@@ -137,12 +137,15 @@ export class NestFactory {
       //   - getCats() 方法用了 @Get('cats')，元数据是 {path: 'cats', method: GET}。
       //   - getCatsMessage() 方法用了 @Get('cats/message')，元数据是 {path: 'cats/message', method: GET}。
       //
-      //   adapter.registerGet.bind(adapter) 是一个回调，用于注册 GET 路由。
+      //   adapter 上的 get/post 回调用于分别注册 GET 和 POST 路由。
       //   responseController 是响应处理器，会被传给 RouterExplorer，
       //   在请求到来时用于把控制器方法的返回值转成 HTTP 响应。
       routerExplorer.registerRoutes(
         controller,
-        adapter.registerGet.bind(adapter),
+        {
+          get: adapter.registerGet.bind(adapter),
+          post: adapter.registerPost.bind(adapter),
+        },
         responseController,
       );
     }
