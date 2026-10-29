@@ -16,6 +16,7 @@ import {
   CONTROLLER_WATERMARK,
   METHOD_METADATA,
   PATH_METADATA,
+  PARAM_DECORATORS_METADATA,
 } from '../../common/constants.js';
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 // 路由命中后，把控制器方法的返回值交给统一的响应委托层。
@@ -34,7 +35,8 @@ import { RouterResponseController } from './router-response-controller.js';
  *     methodName: 'getMessage',
  *     method: RequestMethod.GET,  // 数字值，例如 0
  *     path: 'message',              // 来自 @Get('message')
- *     callback: [Function: getMessage]
+ *     callback: [Function: getMessage],
+ *     target: CatsController.prototype,  // 用于读取参数装饰器元数据
  *   }
  */
 interface RouteDefinition {
@@ -42,6 +44,7 @@ interface RouteDefinition {
   method: RequestMethod;
   path: string | string[];
   callback: Function;
+  target: object; // 控制器原型对象，用于 Reflect.getMetadata(key, target, methodName)
 }
 
 /**
@@ -59,7 +62,8 @@ interface RouteDefinition {
  *   methodName: 'getMessage',
  *   method: RequestMethod.GET,   // 0
  *   path: '/cats/message',         // 组合后的完整路径
- *   callback: [Function: getMessage]
+ *   callback: [Function: getMessage],
+ *   target: CatsController.prototype,
  * }
  *
  * 特殊情况：
@@ -72,6 +76,7 @@ interface DiscoveredRoute {
   method: RequestMethod;
   path: string;
   callback: Function;
+  target: object; // 控制器原型对象，用于 Reflect.getMetadata(key, target, methodName)
 }
 
 export class RouterExplorer {
@@ -248,6 +253,7 @@ export class RouterExplorer {
         method: methodValue,
         path,
         callback,
+        target: prototype, // 保存原型对象，用于读取参数装饰器元数据
       });
     }
 
@@ -382,6 +388,7 @@ export class RouterExplorer {
             method: definition.method,
             path,
             callback: definition.callback,
+            target: definition.target, // 保存目标对象，用于读取参数装饰器元数据
           });
         }
       }
@@ -402,8 +409,10 @@ export class RouterExplorer {
    * 2. 对每条路由，检查 HTTP 方法（当前只支持 GET）。
    * 3. 用 registerGet() 在 Express 上注册该路由。
    * 4. 注册时传入 Express handler，handler 会：
-   *    a. 调用控制器方法（例如 getCats()），获取业务逻辑的返回值。
-   *    b. 把返回值交给 responseController.apply()，由它负责序列化和发送 HTTP 响应。
+   *    a. 提取方法上的参数装饰器元数据（如 @Res()）。
+   *    b. 根据装饰器类型，生成要注入的参数列表（如 Express response 对象）。
+   *    c. 调用控制器方法，并把生成的参数注入进去。
+   *    d. 把方法的返回值交给 responseController.apply()，由它负责序列化和发送 HTTP 响应。
    *
    * 示例：
    *   控制器定义：
@@ -411,17 +420,32 @@ export class RouterExplorer {
    *   class CatsController {
    *     @Get('message')
    *     getMessage() { return 'Hello'; }
+   *
+   *     @Get('native')
+   *     @Res()
+   *     getCatsWithNativeResponse(@Res() response: Response): void {
+   *       response.status(200).send('Sent by Express response');
+   *     }
    *   }
    *
    *   调用 registerRoutes(new CatsController(), registerGet, responseController) 后：
-   *   - Express 上注册了 GET /cats/message
-   *   - 当有 HTTP GET /cats/message 请求时，Express 会：
-   *     1. 调用 getMessage.call(controller)，得到 'Hello'
-   *     2. 调用 responseController.apply('Hello', response)
-   *     3. 最终 HTTP 响应为 { "message": "Hello" } 或类似格式
+   *   - 第一条路由 GET /cats/message:
+   *     1. 方法 getMessage 没有参数装饰器
+   *     2. 调用 getMessage.call(controller)，得到 'Hello'
+   *     3. 调用 responseController.apply('Hello', response)
+   *     4. 最终 HTTP 响应为 { "message": "Hello" } 或类似格式
+   *
+   *   - 第二条路由 GET /cats/native:
+   *     1. 方法 getCatsWithNativeResponse 有参数 0 的 @Res() 装饰器
+   *     2. 生成参数列表 [expressResponseObject]
+   *     3. 调用 getCatsWithNativeResponse.call(controller, expressResponseObject)
+   *     4. 方法内部用 response.status(200).send(...)，自行处理响应
+   *     5. 返回 undefined 或 void
+   *     6. responseController.apply(undefined, response) 检测到已处理，不再发送
    *
    * 当前限制：
    * - 只支持 GET 方法；若遇到 POST/PUT/DELETE 等会明确抛错。
+   * - 只支持 @Res()/@Req() 装饰器；@Param/@Query/@Body 等暂不实现。
    * - 暂不支持中间件、路由守卫等高级功能。
    */
   registerRoutes(
@@ -440,16 +464,79 @@ export class RouterExplorer {
 
       // 让平台适配器注册真实 HTTP 路由；请求到达时，handler 才会执行。
       // 这个 async handler 是对 Express 路由的封装。
-      registerGet(route.path, async (_request: unknown, response: unknown) => {
-        // callback 是控制器原型上的方法；用 controller 作为 this 调用实例方法。
-        // 例如若 callback 是 getMessage，则调用 getMessage.call(controller)。
-        // 如果 getMessage() 返回字符串 'Hello'，result 就是 'Hello'。
-        // 如果返回数组 [{name: 'Mimi'}]，result 就是那个数组。
-        const result = await route.callback.call(controller);
+      registerGet(route.path, async (request: unknown, response: unknown) => {
+        /**
+         * 第一阶段：提取方法上的参数装饰器元数据
+         *
+         * 例如如果方法定义为：
+         *   @Get('native')
+         *   getCatsWithNativeResponse(@Res() response: Response): void { ... }
+         *
+         * 则 paramDecorators 会是：
+         *   { 0: { decorator: 'Res', options: {} } }
+         *
+         * 表示参数位置 0 需要注入 Response 对象。
+         */
+        const paramDecorators: Record<number, any> =
+          Reflect.getOwnMetadata(
+            PARAM_DECORATORS_METADATA,
+            route.target,
+            route.methodName,
+          ) || {};
 
-        // 将控制器返回值交给 RouterResponseController，再由它委托给 ExpressAdapter.reply()。
-        // responseController.apply() 会检查返回值的类型，并根据类型决定如何序列化和发送。
-        return responseController.apply(result, response);
+        /**
+         * 第二阶段：根据参数装饰器生成要注入的参数列表
+         *
+         * 遍历所有参数位置，根据装饰器类型决定注入什么值：
+         * - decorator: 'Res' → 注入 Express response 对象
+         * - decorator: 'Req' → 注入 Express request 对象
+         *
+         * 示例：
+         *   参数 0: { decorator: 'Res', options: {} }
+         *   → args[0] = response（Express response 对象）
+         *
+         *   后续参数没有装饰器 → 保持 undefined（JavaScript 函数允许 undefined 参数）
+         */
+        const args: any[] = [];
+        for (const paramIndex in paramDecorators) {
+          const paramInfo = paramDecorators[paramIndex];
+          if (paramInfo.decorator === 'Res') {
+            args[paramIndex] = response;
+          } else if (paramInfo.decorator === 'Req') {
+            args[paramIndex] = request;
+          }
+        }
+
+        /**
+         * 第三阶段：调用控制器方法，注入参数
+         *
+         * callback 是控制器原型上的方法；用 controller 作为 this 调用实例方法。
+         * 例如若 callback 是 getCatsWithNativeResponse，则调用：
+         *   getCatsWithNativeResponse.call(controller, responseObject)
+         *
+         * 如果方法返回 void，result 就是 undefined。
+         * 如果方法有返回值，result 就是那个值。
+         */
+        const result = await route.callback.call(controller, ...args);
+
+        /**
+         * 第四阶段：处理返回值
+         *
+         * 判断方法是否自行处理了响应：
+         * - 如果有 @Res({ passthrough: false })（默认），方法返回 void/undefined，
+         *   则 responseController.apply() 会检测到这一点并跳过响应处理。
+         * - 如果有 @Res({ passthrough: true })，即使方法返回值，
+         *   也会继续处理并序列化。
+         *
+         * 将控制器返回值交给 RouterResponseController，再由它委托给 ExpressAdapter.reply()。
+         * responseController.apply() 会检查返回值的类型，并根据类型决定如何序列化和发送。
+         */
+        return responseController.apply(
+          result,
+          response,
+          undefined,
+          route.callback,
+        );
       });
     }
   }

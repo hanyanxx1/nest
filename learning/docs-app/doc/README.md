@@ -37,7 +37,22 @@
 
 - **关键概念**：依赖注入、元数据读取、路由组合、Express 集成
 
-### 第 3 阶段：实践调试
+### 第 3 阶段：理解参数装饰器和响应处理
+- **核心文档**：`doc/5_parameter_decorators_and_res.md`
+- **核心代码文件**（包含详细注释）：
+  - `@nest/common/decorators/http/res.decorator.ts` - @Res() 和 @Req() 参数装饰器
+  - `@nest/core/router/router-explorer.ts` - 参数装饰器的读取和注入
+  - `@nest/core/router/router-response-controller.ts` - @Res() 选项的处理
+
+- **推荐学习顺序**：
+  1. 阅读文档的"问题"和"解决方案"部分，理解参数装饰器的元数据存储方式
+  2. 阅读 res.decorator.ts，理解参数装饰器工厂的实现
+  3. 阅读 router-explorer.ts 中的参数注入逻辑
+  4. 查看 app.controller.ts 中的三个实际使用例子
+
+- **关键概念**：参数装饰器、元数据存储位置差异、passthrough 选项、响应处理流程
+
+### 第 4 阶段：实践调试
 - **文档**：`2_debugging_with_comments.md`
 - **三个核心调试场景**：
   1. 路由从定义到注册的全过程
@@ -64,13 +79,15 @@ learning/docs-app/@nest/
 │       │   ├── injectable.decorator.ts ★ 详细注释
 │       │   └── controller.decorator.ts ★ 详细注释
 │       └── http/
-│           └── request-mapping.decorator.ts ★ 详细注释（包含 @Get 等）
+│           ├── request-mapping.decorator.ts ★ 详细注释（包含 @Get 等）
+│           ├── res.decorator.ts ★ 详细注释（@Res() 和 @Req()）
+│           └── index.ts                # HTTP 装饰器导出
 ├── core/
 │   ├── nest-factory.ts                 ★ 详细注释（应用启动）
 │   ├── nest-application.ts             # HTTP 应用包装
 │   └── router/
-│       ├── router-explorer.ts          ★ 详细注释（路由发现）
-│       └── router-response-controller.ts # 响应处理
+│       ├── router-explorer.ts          ★ 详细注释（路由发现、参数注入）
+│       └── router-response-controller.ts ★ 详细注释（响应处理）
 └── platform-express/
     └── adapters/
         └── express-adapter.ts          # Express 适配
@@ -84,6 +101,7 @@ learning/docs-app/doc/
 │   └── 1.md                                 # 伪代码执行路径示例
 ├── 2_debugging_with_comments.md             # 调试指南 ★ 开始这里！
 ├── 3_summary_and_next_steps.md              # 总结和后续建议
+├── 5_parameter_decorators_and_res.md        # @Res() 参数装饰器实现 ★ 新增！
 └── README.md                                # 本文件
 ```
 
@@ -149,10 +167,11 @@ npm run start:source
 
 ### 元数据常量
 ```typescript
-PATH_METADATA = 'nestjs:path'              // 路由路径
-METHOD_METADATA = 'nestjs:method'          // HTTP 方法
-CONTROLLER_WATERMARK = 'nestjs:controller' // 控制器标记
-INJECTABLE_WATERMARK = 'nestjs:injectable' // 可注入标记
+PATH_METADATA = 'nestjs:path'                    // 路由路径
+METHOD_METADATA = 'nestjs:method'                // HTTP 方法
+CONTROLLER_WATERMARK = 'nestjs:controller'       // 控制器标记
+INJECTABLE_WATERMARK = 'nestjs:injectable'       // 可注入标记
+PARAM_DECORATORS_METADATA = '__param_decorators__' // 参数装饰器
 ```
 
 ### 装饰器执行顺序
@@ -169,12 +188,54 @@ class AppController {}    // 应用：在所有方法装饰器之后
 class AppModule {}        // 应用：在类定义完成后
 ```
 
+### 元数据存储位置
+
+**关键发现**：不同类型的装饰器在不同位置存储元数据
+
+```typescript
+// 路由装饰器（@Get, @Post）→ 存储在方法函数本身
+Reflect.defineMetadata(METHOD_METADATA, RequestMethod.GET, methodFunction);
+// 读取：Reflect.getMetadata(METHOD_METADATA, methodFunction);
+
+// 参数装饰器（@Res, @Req）→ 存储在 (原型对象, 方法名) 组合
+Reflect.defineMetadata(PARAM_DECORATORS_METADATA, decoratorInfo, target, methodName);
+// 读取：Reflect.getMetadata(PARAM_DECORATORS_METADATA, target, methodName);
+```
+
 ### 路径组合规则
 ```
 @Controller('cats') + @Get('message') = /cats/message
 @Controller('') + @Get('health') = /health
 @Controller('/') + @Get('/') = /
 @Controller(['cats', 'pets']) + @Get('list') = [/cats/list, /pets/list]
+```
+
+### @Res() 装饰器的两种用法
+
+```typescript
+// 方式 1：标准方式（不使用 @Res()）
+@Get()
+findAll(): Cat[] {
+  return [{ name: 'Mimi' }];
+}
+// 响应：[{"name":"Mimi"}] 200 OK
+
+// 方式 2：原生 Express 方式
+@Get('native')
+getCatsWithNativeResponse(@Res() response: Response): void {
+  response.status(200).send('Sent by Express response');
+}
+// 响应：Sent by Express response 200 OK
+// 特点：方法直接处理响应，返回值被忽略
+
+// 方式 3：混合模式（passthrough: true）
+@Get('passthrough')
+getCatsWithPassthrough(@Res({ passthrough: true }) response: Response): Cat[] {
+  response.status(202);
+  return [{ name: 'Mimi' }];
+}
+// 响应：[{"name":"Mimi"}] 202 Accepted
+// 特点：既能操作 response（status、header 等），也能返回值让 NestJS 处理
 ```
 
 ## 🔍 常见调试场景
@@ -195,7 +256,16 @@ class AppModule {}        // 应用：在类定义完成后
 2. Watch `controllerPath`、`methodPath` 和最终的 `path`
 3. 单步执行路径组合逻辑，观察变量变化
 
-### 场景 3：追踪依赖注入
+### 场景 3：追踪参数装饰器
+**问题**：不明白 @Res() 如何被注入到方法参数
+
+**解决**：
+1. 在 res.decorator.ts 的 `Reflect.defineMetadata()` 处打断点
+2. 在 router-explorer.ts 的 `Reflect.getMetadata()` 处打断点（参数装饰器读取）
+3. 观察元数据键是否为 `PARAM_DECORATORS_METADATA`
+4. 注意参数装饰器使用 `(target, propertyKey)` 而不是 `(methodFunction)` 来存储
+
+### 场景 4：追踪依赖注入
 **问题**：不明白 provider 如何被注入到控制器
 
 **解决**：
