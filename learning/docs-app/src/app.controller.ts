@@ -39,7 +39,7 @@ export class AppController {
    * 方式特点：
    * - 方法接收 Express Response 对象作为参数
    * - 开发者完全控制响应：设置状态码、响应头、响应体
-   * - 方法返回 void/undefined，因为响应已由方法内部发送
+   * - 默认 @Res() 会关闭 Nest 的标准响应处理；即使方法返回值，Nest 也会忽略它
    * - 无需 Nest 自动序列化和处理状态码
    *
    * 调用：GET /cats/native
@@ -50,8 +50,9 @@ export class AppController {
    * 2. 返回非 JSON 的内容（二进制、流、文件等）
    */
   @Get('cats/native')
-  getCatsWithNativeResponse(@Res() response: Response): void {
+  getCatsWithNativeResponse(@Res() response: Response): string {
     response.status(200).send('Sent by Express response');
+    return 'This return value should be ignored';
   }
 
   /**
@@ -81,6 +82,11 @@ export class AppController {
   ): { name: string }[] {
     response.status(202);
     return [{ name: 'Mimi' }];
+  }
+
+  @Get('cats/count')
+  getCatsCount(): number {
+    return 3;
   }
 
   @Post('cats')

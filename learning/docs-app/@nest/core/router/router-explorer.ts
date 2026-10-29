@@ -269,7 +269,7 @@ export class RouterExplorer {
    *
    * 工作原理：
    * explore() 返回前缀数组；scanMethods() 返回方法路由数组。
-   * 由于前缀和方法路径都可能是多个（例如 @Controller(['cats', 'dogs']) + @Get(['list', 'all'])），
+   * 由于前缀和方法路径都可能是多个（例如 @Controller(['cats', 'dogs']) + @Get(['list', 'all'])）,
    * 需要做笛卡尔积，为每个前缀-方法路径组合生成一个最终路由。
    *
    * 路径组合算法：
@@ -402,47 +402,18 @@ export class RouterExplorer {
    * 把扫描得到的路由注册到 HTTP 适配器（例如 Express）。
    *
    * @param controller - 控制器实例。
-   * @param registerGet - 用于注册 GET 路由的回调函数，签名 (path, handler) => void。
+   * @param registerRoute - 按 HTTP 方法注册路由的函数集合；当前支持 GET 和 POST。
    * @param responseController - 响应处理委托，负责把控制器方法的返回值转成 HTTP 响应。
    *
-   * 工作原理：
+   * 工作流程：
    * 1. 调用 getRoutes() 得到所有最终路由。
-   * 2. 对每条路由，检查 HTTP 方法（当前只支持 GET）。
-   * 3. 用 registerGet() 在 Express 上注册该路由。
-   * 4. 注册时传入 Express handler，handler 会：
-   *    a. 提取方法上的参数装饰器元数据（如 @Res()）。
-   *    b. 根据装饰器类型，生成要注入的参数列表（如 Express response 对象）。
-   *    c. 调用控制器方法，并把生成的参数注入进去。
-   *    d. 把方法的返回值交给 responseController.apply()，由它负责序列化和发送 HTTP 响应。
+   * 2. 根据 HTTP 方法选择 GET 或 POST 注册函数；其他方法会明确报错。
+   * 3. 请求到达后，读取参数装饰器元数据，生成要注入的参数并调用控制器方法。
+   * 4. 优先使用方法上的 @HttpCode() 状态码；没有时，POST 默认 201，其他方法沿用适配器默认值。
+   * 5. 将返回值、状态码和参数装饰器元数据交给 responseController.apply()。
    *
-   * 示例：
-   *   控制器定义：
-   *   @Controller('cats')
-   *   class CatsController {
-   *     @Get('message')
-   *     getMessage() { return 'Hello'; }
-   *
-   *     @Get('native')
-   *     @Res()
-   *     getCatsWithNativeResponse(@Res() response: Response): void {
-   *       response.status(200).send('Sent by Express response');
-   *     }
-   *   }
-   *
-   *   调用 registerRoutes(new CatsController(), registerGet, responseController) 后：
-   *   - 第一条路由 GET /cats/message:
-   *     1. 方法 getMessage 没有参数装饰器
-   *     2. 调用 getMessage.call(controller)，得到 'Hello'
-   *     3. 调用 responseController.apply('Hello', response)
-   *     4. 最终 HTTP 响应为 { "message": "Hello" } 或类似格式
-   *
-   *   - 第二条路由 GET /cats/native:
-   *     1. 方法 getCatsWithNativeResponse 有参数 0 的 @Res() 装饰器
-   *     2. 生成参数列表 [expressResponseObject]
-   *     3. 调用 getCatsWithNativeResponse.call(controller, expressResponseObject)
-   *     4. 方法内部用 response.status(200).send(...)，自行处理响应
-   *     5. 返回 undefined 或 void
-   *     6. responseController.apply(undefined, response) 检测到已处理，不再发送
+   * @Res() 未启用 passthrough 时，Nest 不会继续发送控制器返回值；
+   * 启用 passthrough 或未使用 @Res() 时，返回值由适配器处理。
    *
    * 当前限制：
    * - 只支持 GET 和 POST 方法；其他 HTTP 方法会明确抛错。
@@ -534,9 +505,9 @@ export class RouterExplorer {
          * 第四阶段：处理返回值
          *
          * 判断方法是否自行处理了响应：
-         * - 如果有 @Res({ passthrough: false })（默认），方法返回 void/undefined，
+         * - 如果有 @Res({ passthrough: false })（默认），方法返回 void/undefined,
          *   则 responseController.apply() 会检测到这一点并跳过响应处理。
-         * - 如果有 @Res({ passthrough: true })，即使方法返回值，
+         * - 如果有 @Res({ passthrough: true })，即使方法返回值,
          *   也会继续处理并序列化。
          *
          * 将控制器返回值交给 RouterResponseController，再由它委托给 ExpressAdapter.reply()。
@@ -553,7 +524,7 @@ export class RouterExplorer {
           result,
           response,
           statusCode,
-          route.callback,
+          paramDecorators,
         );
       });
     }

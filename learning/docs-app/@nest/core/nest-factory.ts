@@ -75,7 +75,7 @@ export class NestFactory {
     // 第四步：逐一处理每个控制器。
     //
     // 示例处理流程（以 AppController 为例）：
-    //   AppController 的构造函数签名是 constructor(private appService: AppService)，
+    //   AppController 的构造函数签名是 constructor(private appService: AppService)。
     //   TypeScript 装饰器元数据会记录参数类型是 [AppService]。
     //
     //   我们要做的是：
@@ -128,7 +128,7 @@ export class NestFactory {
       ) as object;
 
       // 扫描控制器实例上的路由。
-      // RouterExplorer 会找出所有用 @Get()、@Post() 等装饰的方法，
+      // RouterExplorer 会找出所有用 @Get()、@Post() 等装饰的方法。
       // 提取它们的元数据（路径、HTTP 方法等），并逐一注册到 Express 上。
       //
       // 示例：
@@ -138,7 +138,7 @@ export class NestFactory {
       //   - getCatsMessage() 方法用了 @Get('cats/message')，元数据是 {path: 'cats/message', method: GET}。
       //
       //   adapter 上的 get/post 回调用于分别注册 GET 和 POST 路由。
-      //   responseController 是响应处理器，会被传给 RouterExplorer，
+      //   responseController 是响应处理器，会被传给 RouterExplorer。
       //   在请求到来时用于把控制器方法的返回值转成 HTTP 响应。
       routerExplorer.registerRoutes(
         controller,
