@@ -186,3 +186,5 @@ export function Req(): ParameterDecorator {
 export function Next(): ParameterDecorator {
   return createParamDecorator('Next');
 }
+
+export const Request = Req;
