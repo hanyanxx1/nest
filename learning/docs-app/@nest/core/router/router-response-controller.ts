@@ -20,9 +20,10 @@ export class RouterResponseController {
    * @param paramDecorators - RouterExplorer 读取到的参数装饰器元数据
    *
    * 工作原理：
-   * 1. 没有 @Res() 时，将返回值和状态码交给适配器。
+   * 1. 没有 @Res() 或 @Next() 时，将返回值和状态码交给适配器。
    * 2. 有 @Res() 且 passthrough 未启用时，标准响应处理被关闭；方法返回值会被忽略。
-   * 3. 有 @Res({ passthrough: true }) 时，仍将返回值和状态码交给适配器。
+   * 3. 有 @Next() 时，Nest 不会继续发送控制器返回值；由控制器调用 next() 决定请求流程。
+   * 4. 有 @Res({ passthrough: true }) 时，仍将返回值和状态码交给适配器。
    */
   apply(
     result: unknown,
@@ -30,6 +31,24 @@ export class RouterResponseController {
     statusCode?: number,
     paramDecorators: Record<number, ParamDecoratorMetadata> = {},
   ): unknown {
+    let hasNextDecorator = false;
+    let hasNonPassthroughRes = false;
+
+    for (const paramInfo of Object.values(paramDecorators)) {
+      if (paramInfo.decorator === 'Next') {
+        hasNextDecorator = true;
+      } else if (
+        paramInfo.decorator === 'Res' &&
+        paramInfo.options?.passthrough !== true
+      ) {
+        hasNonPassthroughRes = true;
+      }
+    }
+
+    if (hasNextDecorator || hasNonPassthroughRes) {
+      return;
+    }
+
     // 查找是否有 Res 装饰器
     let hasResDecorator = false;
     let hasPassthrough = false;

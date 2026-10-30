@@ -179,3 +179,10 @@ export function Res(options?: ResDecoratorOptions): ParameterDecorator {
 export function Req(): ParameterDecorator {
   return createParamDecorator('Req');
 }
+
+/**
+ * @Next() 装饰器 - 注入 Express 的 next 回调。
+ */
+export function Next(): ParameterDecorator {
+  return createParamDecorator('Next');
+}

@@ -446,87 +446,93 @@ export class RouterExplorer {
 
       // 让平台适配器注册真实 HTTP 路由；请求到达时，handler 才会执行。
       // 这个 async handler 是对 Express 路由的封装。
-      register(route.path, async (request: unknown, response: unknown) => {
-        /**
-         * 第一阶段：提取方法上的参数装饰器元数据
-         *
-         * 例如如果方法定义为：
-         *   @Get('native')
-         *   getCatsWithNativeResponse(@Res() response: Response): void { ... }
-         *
-         * 则 paramDecorators 会是：
-         *   { 0: { decorator: 'Res', options: {} } }
-         *
-         * 表示参数位置 0 需要注入 Response 对象。
-         */
-        const paramDecorators: Record<number, any> =
-          Reflect.getOwnMetadata(
-            PARAM_DECORATORS_METADATA,
-            route.target,
-            route.methodName,
-          ) || {};
+      register(
+        route.path,
+        async (request: unknown, response: unknown, next: unknown) => {
+          /**
+           * 第一阶段：提取方法上的参数装饰器元数据
+           *
+           * 例如如果方法定义为：
+           *   @Get('native')
+           *   getCatsWithNativeResponse(@Res() response: Response): void { ... }
+           *
+           * 则 paramDecorators 会是：
+           *   { 0: { decorator: 'Res', options: {} } }
+           *
+           * 表示参数位置 0 需要注入 Response 对象。
+           */
+          const paramDecorators: Record<number, any> =
+            Reflect.getOwnMetadata(
+              PARAM_DECORATORS_METADATA,
+              route.target,
+              route.methodName,
+            ) || {};
 
-        /**
-         * 第二阶段：根据参数装饰器生成要注入的参数列表
-         *
-         * 遍历所有参数位置，根据装饰器类型决定注入什么值：
-         * - decorator: 'Res' → 注入 Express response 对象
-         * - decorator: 'Req' → 注入 Express request 对象
-         *
-         * 示例：
-         *   参数 0: { decorator: 'Res', options: {} }
-         *   → args[0] = response（Express response 对象）
-         *
-         *   后续参数没有装饰器 → 保持 undefined（JavaScript 函数允许 undefined 参数）
-         */
-        const args: any[] = [];
-        for (const paramIndex in paramDecorators) {
-          const paramInfo = paramDecorators[paramIndex];
-          if (paramInfo.decorator === 'Res') {
-            args[paramIndex] = response;
-          } else if (paramInfo.decorator === 'Req') {
-            args[paramIndex] = request;
+          /**
+           * 第二阶段：根据参数装饰器生成要注入的参数列表
+           *
+           * 遍历所有参数位置，根据装饰器类型决定注入什么值：
+           * - decorator: 'Res' → 注入 Express response 对象
+           * - decorator: 'Req' → 注入 Express request 对象
+           * - decorator: 'Next' → 注入 Express next 回调
+           *
+           * 示例：
+           *   参数 0: { decorator: 'Res', options: {} }
+           *   → args[0] = response（Express response 对象）
+           *
+           *   后续参数没有装饰器 → 保持 undefined（JavaScript 函数允许 undefined 参数）
+           */
+          const args: any[] = [];
+          for (const paramIndex in paramDecorators) {
+            const paramInfo = paramDecorators[paramIndex];
+            if (paramInfo.decorator === 'Res') {
+              args[paramIndex] = response;
+            } else if (paramInfo.decorator === 'Req') {
+              args[paramIndex] = request;
+            } else if (paramInfo.decorator === 'Next') {
+              args[paramIndex] = next;
+            }
           }
-        }
 
-        /**
-         * 第三阶段：调用控制器方法，注入参数
-         *
-         * callback 是控制器原型上的方法；用 controller 作为 this 调用实例方法。
-         * 例如若 callback 是 getCatsWithNativeResponse，则调用：
-         *   getCatsWithNativeResponse.call(controller, responseObject)
-         *
-         * 如果方法返回 void，result 就是 undefined。
-         * 如果方法有返回值，result 就是那个值。
-         */
-        const result = await route.callback.call(controller, ...args);
+          /**
+           * 第三阶段：调用控制器方法，注入参数
+           *
+           * callback 是控制器原型上的方法；用 controller 作为 this 调用实例方法。
+           * 例如若 callback 是 getCatsWithNativeResponse，则调用：
+           *   getCatsWithNativeResponse.call(controller, responseObject)
+           *
+           * 如果方法返回 void，result 就是 undefined。
+           * 如果方法有返回值，result 就是那个值。
+           */
+          const result = await route.callback.call(controller, ...args);
 
-        /**
-         * 第四阶段：处理返回值
-         *
-         * 判断方法是否自行处理了响应：
-         * - 如果有 @Res({ passthrough: false })（默认），方法返回 void/undefined,
-         *   则 responseController.apply() 会检测到这一点并跳过响应处理。
-         * - 如果有 @Res({ passthrough: true })，即使方法返回值,
-         *   也会继续处理并序列化。
-         *
-         * 将控制器返回值交给 RouterResponseController，再由它委托给 ExpressAdapter.reply()。
-         * responseController.apply() 会检查返回值的类型，并根据类型决定如何序列化和发送。
-         */
-        const httpCode: number | undefined = Reflect.getMetadata(
-          HTTP_CODE_METADATA,
-          route.callback,
-        );
-        const statusCode =
-          httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
+          /**
+           * 第四阶段：处理返回值
+           *
+           * 判断方法是否自行处理了响应：
+           * - 如果有 @Res({ passthrough: false })（默认），方法返回 void/undefined,
+           *   则 responseController.apply() 会检测到这一点并跳过响应处理。
+           * - 如果有 @Res({ passthrough: true })，即使方法返回值,
+           *   也会继续处理并序列化。
+           *
+           * 将控制器返回值交给 RouterResponseController，再由它委托给 ExpressAdapter.reply()。
+           * responseController.apply() 会检查返回值的类型，并根据类型决定如何序列化和发送。
+           */
+          const httpCode: number | undefined = Reflect.getMetadata(
+            HTTP_CODE_METADATA,
+            route.callback,
+          );
+          const statusCode =
+            httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
 
-        return responseController.apply(
-          result,
-          response,
-          statusCode,
-          paramDecorators,
-        );
-      });
+          return responseController.apply(
+            result,
+            response,
+            statusCode,
+            paramDecorators,
+          );
+        },
+      );
     }
   }
 }
