@@ -81,6 +81,8 @@ export class AppController {
     @Res({ passthrough: true }) response: Response,
   ): { name: string }[] {
     response.status(202);
+    response.setHeader('X-Cats-Mode', 'passthrough');
+    response.cookie('cats-mode', 'passthrough');
     return [{ name: 'Mimi' }];
   }
 
