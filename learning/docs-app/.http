@@ -1,0 +1,33 @@
+@baseUrl = http://localhost:3000
+
+### Standard array response: GET /cats
+GET {{baseUrl}}/cats
+Accept: application/json
+
+### Standard string response: GET /cats/message
+GET {{baseUrl}}/cats/message
+Accept: text/plain
+
+### Native Express response: GET /cats/native
+GET {{baseUrl}}/cats/native
+
+### Passthrough status, response header, cookie, and JSON body
+GET {{baseUrl}}/cats/passthrough
+Accept: application/json
+
+### Primitive number response: GET /cats/count
+GET {{baseUrl}}/cats/count
+Accept: text/plain
+
+### POST /cats with @HttpCode(202)
+POST {{baseUrl}}/cats
+Accept: application/json
+
+### @Next() forwards an error to Express
+GET {{baseUrl}}/cats/next-error
+
+### @Next('route') skips the current route
+GET {{baseUrl}}/cats/next-route
+
+### @Next('router') exits the current Express router
+GET {{baseUrl}}/cats/next-router
