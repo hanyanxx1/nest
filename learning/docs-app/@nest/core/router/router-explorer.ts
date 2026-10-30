@@ -523,6 +523,19 @@ export class RouterExplorer {
               } else {
                 args[paramIndex] = body[paramInfo.options.name];
               }
+            } else if (paramInfo.decorator === 'Headers') {
+              const headers = (
+                request as {
+                  headers: Record<string, string | string[] | undefined>;
+                }
+              ).headers;
+              const headerName = paramInfo.options.name;
+
+              if (headerName === undefined) {
+                args[paramIndex] = headers;
+              } else {
+                args[paramIndex] = headers[headerName.toLowerCase()];
+              }
             }
           }
 

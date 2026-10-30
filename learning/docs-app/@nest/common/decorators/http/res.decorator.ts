@@ -209,3 +209,10 @@ export function Query(name?: string): ParameterDecorator {
 export function Body(name?: string): ParameterDecorator {
   return createParamDecorator('Body', { name });
 }
+
+/**
+ * @Headers() 装饰器 - 注入全部或指定的请求头
+ */
+export function Headers(name?: string): ParameterDecorator {
+  return createParamDecorator('Headers', { name });
+}
