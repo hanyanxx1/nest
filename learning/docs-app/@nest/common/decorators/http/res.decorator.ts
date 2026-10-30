@@ -188,3 +188,24 @@ export function Next(): ParameterDecorator {
 }
 
 export const Request = Req;
+
+/**
+ * @Param() 装饰器 - 注入参数名
+ */
+export function Param(name?: string): ParameterDecorator {
+  return createParamDecorator('Param', { name });
+}
+
+/**
+ * @Query() 装饰器 - 注入全部或指定的查询参数
+ */
+export function Query(name?: string): ParameterDecorator {
+  return createParamDecorator('Query', { name });
+}
+
+/**
+ * @Body() 装饰器 - 注入整个请求体或其中指定的属性
+ */
+export function Body(name?: string): ParameterDecorator {
+  return createParamDecorator('Body', { name });
+}

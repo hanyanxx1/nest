@@ -491,6 +491,38 @@ export class RouterExplorer {
               args[paramIndex] = request;
             } else if (paramInfo.decorator === 'Next') {
               args[paramIndex] = next;
+            } else if (paramInfo.decorator === 'Param') {
+              const params = (request as { params: Record<string, string> })
+                .params;
+              if (paramInfo.options.name === undefined) {
+                args[paramIndex] = params;
+              } else {
+                args[paramIndex] = params[paramInfo.options.name];
+              }
+            } else if (paramInfo.decorator === 'Query') {
+              const query = (request as { query: Record<string, string> })
+                .query;
+              if (paramInfo.options.name === undefined) {
+                args[paramIndex] = query;
+              } else {
+                args[paramIndex] = query[paramInfo.options.name];
+              }
+            } else if (paramInfo.decorator === 'Body') {
+              const body = (
+                request as {
+                  body: Record<string, unknown> | null | undefined;
+                }
+              ).body;
+
+              if (
+                paramInfo.options.name === undefined ||
+                body === undefined ||
+                body === null
+              ) {
+                args[paramIndex] = body;
+              } else {
+                args[paramIndex] = body[paramInfo.options.name];
+              }
             }
           }
 

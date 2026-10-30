@@ -68,6 +68,7 @@ export class NestFactory {
     // 第三步：创建 Express 应用及相关组件。
     // 真正的 HTTP 服务由 Express 提供；我们只是在上面注册路由和响应处理。
     const httpServer = express();
+    httpServer.use(express.json());
     const adapter = new ExpressAdapter(httpServer);
     const responseController = new RouterResponseController(adapter);
     const routerExplorer = new RouterExplorer();
