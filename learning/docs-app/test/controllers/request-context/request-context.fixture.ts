@@ -1,4 +1,11 @@
-import { Controller, Get, Headers, Ip, Module } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Ip,
+  Module,
+  HostParam,
+} from '@nestjs/common';
 
 @Controller()
 class RequestContextFixtureController {
@@ -26,3 +33,28 @@ class RequestContextFixtureController {
   controllers: [RequestContextFixtureController],
 })
 export class RequestContextFixtureModule {}
+
+@Controller({ host: ':account.example.com' })
+class HostRoutingFixtureController {
+  @Get('context/host-route')
+  getHostRoute(): { matched: boolean } {
+    return { matched: true };
+  }
+
+  @Get('context/host-param')
+  getHostParam(@HostParam('account') account: string): { account: string } {
+    return { account };
+  }
+
+  @Get('context/all-host-params')
+  getAllHostParams(@HostParam() hosts: Record<string, string>): {
+    hosts: Record<string, string>;
+  } {
+    return { hosts };
+  }
+}
+
+@Module({
+  controllers: [HostRoutingFixtureController],
+})
+export class HostRoutingFixtureModule {}

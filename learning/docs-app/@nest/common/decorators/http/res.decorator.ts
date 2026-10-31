@@ -116,3 +116,10 @@ export function Headers(name?: string): ParameterDecorator {
 export function Ip(): ParameterDecorator {
   return createParamDecorator('Ip');
 }
+
+/**
+ * @HostParam() 装饰器 - 注入 Host 头部参数
+ */
+export function HostParam(name?: string): ParameterDecorator {
+  return createParamDecorator('HostParam', { name });
+}

@@ -7,6 +7,7 @@ import {
   PATH_METADATA,
   PARAM_DECORATORS_METADATA,
   HTTP_CODE_METADATA,
+  HOST_METADATA,
 } from '../../common/constants.js';
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 import { RouterResponseController } from './router-response-controller.js';
@@ -27,6 +28,7 @@ interface DiscoveredRoute {
   path: string;
   callback: Function;
   target: object;
+  host?: string;
 }
 
 interface ParamDecoratorInfo {
@@ -80,6 +82,10 @@ const PARAM_RESOLVERS: Partial<Record<string, ParamResolver>> = {
     return name === undefined ? headers : headers[name.toLowerCase()];
   },
   Ip: ({ request }) => (request as { ip: string }).ip,
+  HostParam: ({ request }, name) => {
+    const hosts = (request as { hosts?: Record<string, string> }).hosts;
+    return hosts === undefined ? undefined : getNamedValue(hosts, name);
+  },
 };
 
 function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {
@@ -175,9 +181,18 @@ export class RouterExplorer {
   getRoutes(controller: object): DiscoveredRoute[] {
     const controllerPaths = this.explore(controller);
     const methodDefinitions = this.scanMethods(controller);
+    const hostValue: unknown = Reflect.getMetadata(
+      HOST_METADATA,
+      controller.constructor,
+    );
+
+    if (hostValue !== undefined && typeof hostValue !== 'string') {
+      throw new Error('控制器的 host 元数据必须是字符串');
+    }
+
+    const host = hostValue;
     const routes: DiscoveredRoute[] = [];
 
-    // 前缀和方法路径都可能是数组，需要组合所有路径。
     for (const controllerPath of controllerPaths) {
       for (const definition of methodDefinitions) {
         const methodPaths = Array.isArray(definition.path)
@@ -197,6 +212,7 @@ export class RouterExplorer {
             path,
             callback: definition.callback,
             target: definition.target,
+            host,
           });
         }
       }
@@ -231,12 +247,24 @@ export class RouterExplorer {
       register(
         route.path,
         async (request: unknown, response: unknown, next: unknown) => {
+          if (route.host !== undefined) {
+            const hostParams = extractHostParams(route.host, request);
+
+            if (hostParams === undefined) {
+              (next as () => void)();
+              return;
+            }
+
+            (request as { hosts?: Record<string, string> }).hosts = hostParams;
+          }
+
           const paramDecorators = (Reflect.getOwnMetadata(
             PARAM_DECORATORS_METADATA,
             route.target,
             route.methodName,
           ) || {}) as Record<number, ParamDecoratorInfo>;
           const args: any[] = [];
+
           for (const [paramIndex, paramInfo] of Object.entries(
             paramDecorators,
           )) {
@@ -272,7 +300,48 @@ export class RouterExplorer {
   }
 }
 
-// 过滤数字枚举生成的反向映射字符串。
+function extractHostParams(
+  host: string,
+  request: unknown,
+): Record<string, string> | undefined {
+  const hostname = (request as { hostname?: unknown }).hostname;
+
+  if (typeof hostname !== 'string') {
+    return undefined;
+  }
+
+  const expectedParts = host.toLowerCase().split('.');
+  const actualParts = hostname.toLowerCase().split('.');
+
+  if (expectedParts.length !== actualParts.length) {
+    return undefined;
+  }
+
+  const hostParams: Record<string, string> = {};
+
+  for (const [index, expectedPart] of expectedParts.entries()) {
+    const actualPart = actualParts[index];
+
+    if (actualPart === undefined) {
+      return undefined;
+    }
+
+    if (expectedPart.startsWith(':')) {
+      const name = expectedPart.slice(1);
+
+      if (name.length === 0 || actualPart.length === 0) {
+        return undefined;
+      }
+
+      hostParams[name] = actualPart;
+    } else if (expectedPart !== actualPart) {
+      return undefined;
+    }
+  }
+
+  return hostParams;
+}
+
 function isRequestMethod(value: unknown): value is RequestMethod {
   return (
     typeof value === 'number' &&

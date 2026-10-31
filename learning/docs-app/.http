@@ -31,3 +31,13 @@ GET {{baseUrl}}/cats/next-route
 
 ### @Next('router') exits the current Express router
 GET {{baseUrl}}/cats/next-router
+
+### Host 匹配：应该返回 account=tenant
+GET {{baseUrl}}/context/host-param
+Host: tenant.example.com
+Accept: application/json
+
+### Host 不匹配：应该返回 404
+GET {{baseUrl}}/context/host-param
+Host: other.example.net
+Accept: application/json
