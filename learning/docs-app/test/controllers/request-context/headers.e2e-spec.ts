@@ -26,4 +26,16 @@ describe('Request context (@Headers)', () => {
         traceId: 'trace-123',
       });
   });
+
+  it('injects the client IP address', async () => {
+    const app = await NestFactory.create(RequestContextFixtureModule);
+
+    await request(app.getHttpServer())
+      .get('/context/ip')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.ip).toEqual(expect.any(String));
+        expect(response.body.ip.length).toBeGreaterThan(0);
+      });
+  });
 });

@@ -79,6 +79,7 @@ const PARAM_RESOLVERS: Partial<Record<string, ParamResolver>> = {
 
     return name === undefined ? headers : headers[name.toLowerCase()];
   },
+  Ip: ({ request }) => (request as { ip: string }).ip,
 };
 
 function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {
