@@ -34,6 +34,7 @@ export function Next(): ParameterDecorator {
 }
 
 export const Request = Req;
+export const Response = Res;
 
 export function Param(name?: string): ParameterDecorator {
   return createParamDecorator('Param', { name });
