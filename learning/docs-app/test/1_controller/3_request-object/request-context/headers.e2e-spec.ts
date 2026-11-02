@@ -1,33 +1,22 @@
 import { NestFactory } from '@nestjs/core';
 import request from 'supertest';
-import {
-  HostRoutingFixtureModule,
-  RequestContextFixtureModule,
-} from './request-context.fixture.js';
+import { HostRoutingFixtureModule, RequestContextFixtureModule } from './request-context.fixture.js';
 
 describe('Request context (@Headers)', () => {
   it('injects a request header by key', async () => {
     const app = await NestFactory.create(RequestContextFixtureModule);
 
-    await request(app.getHttpServer())
-      .get('/context/headers')
-      .set('x-trace-id', 'trace-123')
-      .expect(200)
-      .expect({
-        traceId: 'trace-123',
-      });
+    await request(app.getHttpServer()).get('/context/headers').set('x-trace-id', 'trace-123').expect(200).expect({
+      traceId: 'trace-123',
+    });
   });
 
   it('injects all request headers when @Headers has no key', async () => {
     const app = await NestFactory.create(RequestContextFixtureModule);
 
-    await request(app.getHttpServer())
-      .get('/context/all-headers')
-      .set('x-trace-id', 'trace-123')
-      .expect(200)
-      .expect({
-        traceId: 'trace-123',
-      });
+    await request(app.getHttpServer()).get('/context/all-headers').set('x-trace-id', 'trace-123').expect(200).expect({
+      traceId: 'trace-123',
+    });
   });
 
   it('injects the client IP address', async () => {
@@ -53,10 +42,7 @@ describe('Request context (host routing prerequisite)', () => {
       .expect(200)
       .expect({ matched: true });
 
-    await request(app.getHttpServer())
-      .get('/context/host-route')
-      .set('host', 'other.example.net')
-      .expect(404);
+    await request(app.getHttpServer()).get('/context/host-route').set('host', 'other.example.net').expect(404);
   });
 });
 

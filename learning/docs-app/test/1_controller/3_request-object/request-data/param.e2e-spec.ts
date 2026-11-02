@@ -14,35 +14,26 @@ describe('Request data (@Param, @Query, @Body)', () => {
   it('injects all route parameters when @Param has no key', async () => {
     const app = await NestFactory.create(RequestDataFixtureModule);
 
-    await request(app.getHttpServer())
-      .get('/cats/42/details')
-      .expect(200)
-      .expect({
-        id: '42',
-      });
+    await request(app.getHttpServer()).get('/cats/42/details').expect(200).expect({
+      id: '42',
+    });
   });
 
   it('injects a query parameter by key', async () => {
     const app = await NestFactory.create(RequestDataFixtureModule);
 
-    await request(app.getHttpServer())
-      .get('/search-cats?name=Milo')
-      .expect(200)
-      .expect({
-        name: 'Milo',
-      });
+    await request(app.getHttpServer()).get('/search-cats?name=Milo').expect(200).expect({
+      name: 'Milo',
+    });
   });
 
   it('injects all query parameters when @Query has no key', async () => {
     const app = await NestFactory.create(RequestDataFixtureModule);
 
-    await request(app.getHttpServer())
-      .get('/search-cats/all?name=Milo&age=3')
-      .expect(200)
-      .expect({
-        name: 'Milo',
-        age: '3',
-      });
+    await request(app.getHttpServer()).get('/search-cats/all?name=Milo&age=3').expect(200).expect({
+      name: 'Milo',
+      age: '3',
+    });
   });
 
   it('injects the request body when @Body has no key', async () => {

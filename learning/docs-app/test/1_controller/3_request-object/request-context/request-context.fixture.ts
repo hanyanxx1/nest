@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Headers,
-  Ip,
-  Module,
-  HostParam,
-} from '@nestjs/common';
+import { Controller, Get, Headers, Ip, Module, HostParam } from '@nestjs/common';
 
 @Controller()
 class RequestContextFixtureController {
@@ -17,9 +10,9 @@ class RequestContextFixtureController {
   }
 
   @Get('context/all-headers')
-  getAllHeaders(
-    @Headers() headers: Record<string, string | string[] | undefined>,
-  ): { traceId: string | string[] | undefined } {
+  getAllHeaders(@Headers() headers: Record<string, string | string[] | undefined>): {
+    traceId: string | string[] | undefined;
+  } {
     return { traceId: headers['x-trace-id'] };
   }
 

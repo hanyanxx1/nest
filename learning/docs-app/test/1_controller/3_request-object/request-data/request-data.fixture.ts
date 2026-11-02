@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Module,
-  Param,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Get, Module, Param, Post, Query } from '@nestjs/common';
 
 @Controller()
 class RequestDataFixtureController {
