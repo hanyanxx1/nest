@@ -84,6 +84,7 @@ const PARAM_RESOLVERS: Partial<Record<string, ParamResolver>> = {
     const hosts = (request as { hosts?: Record<string, string> }).hosts;
     return hosts === undefined ? undefined : getNamedValue(hosts, name);
   },
+  Session: ({ request }) => (request as { session?: unknown }).session,
 };
 
 function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {

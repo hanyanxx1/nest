@@ -59,3 +59,8 @@ export function Ip(): ParameterDecorator {
 export function HostParam(name?: string): ParameterDecorator {
   return createParamDecorator('HostParam', { name });
 }
+
+// @Session() 从当前请求对象中提取 session。
+export function Session(): ParameterDecorator {
+  return createParamDecorator('Session');
+}
