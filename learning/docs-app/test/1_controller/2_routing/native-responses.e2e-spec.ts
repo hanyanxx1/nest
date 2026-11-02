@@ -42,6 +42,7 @@ describe('Routing (native responses)', () => {
   // 验证 @Res() 注入成功，响应由控制器调用原生 send() 发出。
   it('sends a response through the native response object', async () => {
     const app = await NestFactory.create(NativeResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/native').expect(200).expect('Sent by native response');
   });
@@ -49,6 +50,7 @@ describe('Routing (native responses)', () => {
   // 响应体来自原生 send()，而不是控制器返回的字符串。
   it('ignores the return value when using non-passthrough @Res', async () => {
     const app = await NestFactory.create(NativeResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/native-return').expect(200).expect('Sent by native response');
   });
@@ -56,6 +58,7 @@ describe('Routing (native responses)', () => {
   // 状态码和响应头由控制器设置，JSON 响应体仍由框架发送。
   it('keeps standard response handling with passthrough @Res', async () => {
     const app = await NestFactory.create(NativeResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer())
       .get('/cats/passthrough')
@@ -67,6 +70,7 @@ describe('Routing (native responses)', () => {
   // @Response() 作为别名，应能像 @Res() 一样直接发送响应。
   it('sends a response through the @Response alias', async () => {
     const app = await NestFactory.create(NativeResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/response-alias').expect(200).expect('Sent by response alias');
   });

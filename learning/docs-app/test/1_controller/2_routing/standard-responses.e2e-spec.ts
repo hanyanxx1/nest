@@ -45,6 +45,7 @@ describe('Routing (standard responses)', () => {
   // 返回对象时，框架应发送 JSON 响应体。
   it('serializes an object return value as JSON', async () => {
     const app = await NestFactory.create(StandardResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/object').expect(200).expect({ name: 'Mimi' });
   });
@@ -52,6 +53,7 @@ describe('Routing (standard responses)', () => {
   // 返回数组时，框架应发送 JSON 数组响应体。
   it('serializes an array return value as JSON', async () => {
     const app = await NestFactory.create(StandardResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer())
       .get('/cats/array')
@@ -62,6 +64,7 @@ describe('Routing (standard responses)', () => {
   // 返回字符串时，框架应直接发送字符串内容。
   it('sends a string return value directly', async () => {
     const app = await NestFactory.create(StandardResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/message').expect(200).expect('Hello from Nest');
   });
@@ -69,6 +72,7 @@ describe('Routing (standard responses)', () => {
   // Supertest 的数字 .expect() 参数会被解释为状态码，因此改查响应文本。
   it('sends a number return value directly', async () => {
     const app = await NestFactory.create(StandardResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer())
       .get('/cats/count')
@@ -81,6 +85,7 @@ describe('Routing (standard responses)', () => {
   // 自定义状态码生效时，标准流程仍应发送控制器返回的 JSON。
   it('uses the status code specified by @HttpCode', async () => {
     const app = await NestFactory.create(StandardResponsesFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).post('/cats/custom-status').expect(202).expect({ created: true });
   });

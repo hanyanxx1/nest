@@ -33,6 +33,7 @@ describe('Routing (@Next)', () => {
   // 验证注入的 next 函数可以跳过当前路由并继续匹配。
   it('continues to the next matching route', async () => {
     const app = await NestFactory.create(NextFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/next-route').expect(200).expect('Handled by the next matching route');
   });
@@ -40,6 +41,7 @@ describe('Routing (@Next)', () => {
   // 错误应由 Express 错误处理链处理，最终产生 500 响应。
   it('forwards errors to Express error handling', async () => {
     const app = await NestFactory.create(NextFixtureModule);
+    await app.init();
 
     await request(app.getHttpServer()).get('/cats/next-error').expect(500);
   });
