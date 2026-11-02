@@ -29,17 +29,12 @@ export class NestFactory {
       const argumentsForController = dependencies.map((dependency) => {
         const instance = providers.get(dependency);
         if (!instance) {
-          throw new Error(
-            `${controllerType.name} 依赖的 ${dependency.name} 未在 providers 中注册`,
-          );
+          throw new Error(`${controllerType.name} 依赖的 ${dependency.name} 未在 providers 中注册`);
         }
         return instance;
       });
 
-      const controller = Reflect.construct(
-        controllerType,
-        argumentsForController,
-      ) as object;
+      const controller = Reflect.construct(controllerType, argumentsForController) as object;
 
       routerExplorer.registerRoutes(
         controller,
@@ -55,35 +50,23 @@ export class NestFactory {
   }
 }
 
-function readClassMetadata(
-  moduleType: Function,
-  key: 'controllers' | 'providers',
-): Function[] {
+function readClassMetadata(moduleType: Function, key: 'controllers' | 'providers'): Function[] {
   const value: unknown = Reflect.getMetadata(key, moduleType);
   if (value === undefined) {
     return [];
   }
-  if (
-    Array.isArray(value) &&
-    value.every((item): item is Function => typeof item === 'function')
-  ) {
+  if (Array.isArray(value) && value.every((item): item is Function => typeof item === 'function')) {
     return value;
   }
   throw new Error(`${moduleType.name} 的 ${key} 元数据必须是类数组`);
 }
 
 function readConstructorDependencies(controllerType: Function): Function[] {
-  const value: unknown = Reflect.getMetadata(
-    'design:paramtypes',
-    controllerType,
-  );
+  const value: unknown = Reflect.getMetadata('design:paramtypes', controllerType);
   if (value === undefined) {
     return [];
   }
-  if (
-    Array.isArray(value) &&
-    value.every((item): item is Function => typeof item === 'function')
-  ) {
+  if (Array.isArray(value) && value.every((item): item is Function => typeof item === 'function')) {
     return value;
   }
   throw new Error(`${controllerType.name} 的构造函数依赖元数据无效`);

@@ -12,7 +12,6 @@ import {
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 import { RouterResponseController } from './router-response-controller.js';
 
-/** 从控制器方法元数据扫描得到的路由。 */
 interface RouteDefinition {
   methodName: string;
   method: RequestMethod;
@@ -21,7 +20,6 @@ interface RouteDefinition {
   target: object;
 }
 
-/** 控制器前缀与方法路径组合后的路由。 */
 interface DiscoveredRoute {
   methodName: string;
   method: RequestMethod;
@@ -96,34 +94,23 @@ export class RouterExplorer {
   /** 读取 @Controller() 设置的路径前缀。 */
   explore(controller: object): string[] {
     const controllerType = controller.constructor;
-    const isController = Reflect.getMetadata(
-      CONTROLLER_WATERMARK,
-      controllerType,
-    );
+    const isController = Reflect.getMetadata(CONTROLLER_WATERMARK, controllerType);
 
     if (!isController) {
       throw new Error(`${controllerType.name} 缺少 @Controller() 装饰器`);
     }
 
-    const controllerPath: unknown = Reflect.getMetadata(
-      PATH_METADATA,
-      controllerType,
-    );
+    const controllerPath: unknown = Reflect.getMetadata(PATH_METADATA, controllerType);
 
     if (typeof controllerPath === 'string') {
       return [controllerPath];
     }
 
-    if (
-      Array.isArray(controllerPath) &&
-      controllerPath.every((path): path is string => typeof path === 'string')
-    ) {
+    if (Array.isArray(controllerPath) && controllerPath.every((path): path is string => typeof path === 'string')) {
       return controllerPath;
     }
 
-    throw new Error(
-      `${controllerType.name} 的控制器路径必须是字符串或字符串数组`,
-    );
+    throw new Error(`${controllerType.name} 的控制器路径必须是字符串或字符串数组`);
   }
 
   /** 收集控制器中声明了 HTTP 方法元数据的方法。 */
@@ -141,10 +128,7 @@ export class RouterExplorer {
         continue;
       }
 
-      const methodValue: unknown = Reflect.getMetadata(
-        METHOD_METADATA,
-        callback,
-      );
+      const methodValue: unknown = Reflect.getMetadata(METHOD_METADATA, callback);
       if (methodValue === undefined) {
         continue;
       }
@@ -156,10 +140,7 @@ export class RouterExplorer {
       let path: string | string[];
       if (typeof pathValue === 'string') {
         path = pathValue;
-      } else if (
-        Array.isArray(pathValue) &&
-        pathValue.every((item): item is string => typeof item === 'string')
-      ) {
+      } else if (Array.isArray(pathValue) && pathValue.every((item): item is string => typeof item === 'string')) {
         path = pathValue;
       } else {
         throw new Error(`${methodName} 的路由路径元数据无效`);
@@ -181,10 +162,7 @@ export class RouterExplorer {
   getRoutes(controller: object): DiscoveredRoute[] {
     const controllerPaths = this.explore(controller);
     const methodDefinitions = this.scanMethods(controller);
-    const hostValue: unknown = Reflect.getMetadata(
-      HOST_METADATA,
-      controller.constructor,
-    );
+    const hostValue: unknown = Reflect.getMetadata(HOST_METADATA, controller.constructor);
 
     if (hostValue !== undefined && typeof hostValue !== 'string') {
       throw new Error('控制器的 host 元数据必须是字符串');
@@ -195,14 +173,10 @@ export class RouterExplorer {
 
     for (const controllerPath of controllerPaths) {
       for (const definition of methodDefinitions) {
-        const methodPaths = Array.isArray(definition.path)
-          ? definition.path
-          : [definition.path];
+        const methodPaths = Array.isArray(definition.path) ? definition.path : [definition.path];
 
         for (const methodPath of methodPaths) {
-          const segments = [controllerPath, methodPath]
-            .map((path) => path.replace(/^\/+|\/+$/g, ''))
-            .filter(Boolean);
+          const segments = [controllerPath, methodPath].map((path) => path.replace(/^\/+|\/+$/g, '')).filter(Boolean);
 
           const path = segments.length === 0 ? '/' : `/${segments.join('/')}`;
 
@@ -244,66 +218,43 @@ export class RouterExplorer {
         throw new Error(`当前路由注册器暂不支持 HTTP 方法：${route.method}`);
       }
 
-      register(
-        route.path,
-        async (request: unknown, response: unknown, next: unknown) => {
-          if (route.host !== undefined) {
-            const hostParams = extractHostParams(route.host, request);
+      register(route.path, async (request: unknown, response: unknown, next: unknown) => {
+        if (route.host !== undefined) {
+          const hostParams = extractHostParams(route.host, request);
 
-            if (hostParams === undefined) {
-              (next as () => void)();
-              return;
-            }
-
-            (request as { hosts?: Record<string, string> }).hosts = hostParams;
+          if (hostParams === undefined) {
+            (next as () => void)();
+            return;
           }
 
-          const paramDecorators = (Reflect.getOwnMetadata(
-            PARAM_DECORATORS_METADATA,
-            route.target,
-            route.methodName,
-          ) || {}) as Record<number, ParamDecoratorInfo>;
-          const args: any[] = [];
+          (request as { hosts?: Record<string, string> }).hosts = hostParams;
+        }
 
-          for (const [paramIndex, paramInfo] of Object.entries(
-            paramDecorators,
-          )) {
-            const resolve = PARAM_RESOLVERS[paramInfo.decorator];
-            if (!resolve) {
-              throw new Error(`当前不支持参数装饰器：${paramInfo.decorator}`);
-            }
+        const paramDecorators = (Reflect.getOwnMetadata(PARAM_DECORATORS_METADATA, route.target, route.methodName) ||
+          {}) as Record<number, ParamDecoratorInfo>;
+        const args: any[] = [];
 
-            args[Number(paramIndex)] = resolve(
-              { request, response, next },
-              paramInfo.options?.name,
-            );
+        for (const [paramIndex, paramInfo] of Object.entries(paramDecorators)) {
+          const resolve = PARAM_RESOLVERS[paramInfo.decorator];
+          if (!resolve) {
+            throw new Error(`当前不支持参数装饰器：${paramInfo.decorator}`);
           }
 
-          const result = await route.callback.call(controller, ...args);
+          args[Number(paramIndex)] = resolve({ request, response, next }, paramInfo.options?.name);
+        }
 
-          const httpCode: number | undefined = Reflect.getMetadata(
-            HTTP_CODE_METADATA,
-            route.callback,
-          );
-          const statusCode =
-            httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
+        const result = await route.callback.call(controller, ...args);
 
-          return responseController.apply(
-            result,
-            response,
-            statusCode,
-            paramDecorators,
-          );
-        },
-      );
+        const httpCode: number | undefined = Reflect.getMetadata(HTTP_CODE_METADATA, route.callback);
+        const statusCode = httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
+
+        return responseController.apply(result, response, statusCode, paramDecorators);
+      });
     }
   }
 }
 
-function extractHostParams(
-  host: string,
-  request: unknown,
-): Record<string, string> | undefined {
+function extractHostParams(host: string, request: unknown): Record<string, string> | undefined {
   const hostname = (request as { hostname?: unknown }).hostname;
 
   if (typeof hostname !== 'string') {
@@ -345,8 +296,6 @@ function extractHostParams(
 function isRequestMethod(value: unknown): value is RequestMethod {
   return (
     typeof value === 'number' &&
-    Object.values(RequestMethod).some(
-      (method) => typeof method === 'number' && method === value,
-    )
+    Object.values(RequestMethod).some((method) => typeof method === 'number' && method === value)
   );
 }
