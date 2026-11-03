@@ -64,3 +64,8 @@ export function HostParam(name?: string): ParameterDecorator {
 export function Session(): ParameterDecorator {
   return createParamDecorator('Session');
 }
+
+// @Cookies() 从请求对象中提取 cookie-parser 解析出的 Cookie；传 name 时只取该项。
+export function Cookies(name?: string): ParameterDecorator {
+  return createParamDecorator('Cookies', { name });
+}

@@ -85,6 +85,11 @@ const PARAM_RESOLVERS: Partial<Record<string, ParamResolver>> = {
     return hosts === undefined ? undefined : getNamedValue(hosts, name);
   },
   Session: ({ request }) => (request as { session?: unknown }).session,
+  // cookie-parser 会把解析结果放到 request.cookies；没有该 middleware 时为 undefined。
+  Cookies: ({ request }, name) => {
+    const cookies = (request as { cookies?: Record<string, string> }).cookies;
+    return cookies === undefined ? undefined : getNamedValue(cookies, name);
+  },
 };
 
 function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {
