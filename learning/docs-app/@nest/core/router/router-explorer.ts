@@ -90,6 +90,11 @@ const PARAM_RESOLVERS: Partial<Record<string, ParamResolver>> = {
     const cookies = (request as { cookies?: Record<string, string> }).cookies;
     return cookies === undefined ? undefined : getNamedValue(cookies, name);
   },
+  // cookie-parser 在配置了 secret 时，把验证通过的签名 Cookie 放到 request.signedCookies。
+  SignedCookies: ({ request }, name) => {
+    const signedCookies = (request as { signedCookies?: Record<string, string> }).signedCookies;
+    return signedCookies === undefined ? undefined : getNamedValue(signedCookies, name);
+  },
 };
 
 function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {

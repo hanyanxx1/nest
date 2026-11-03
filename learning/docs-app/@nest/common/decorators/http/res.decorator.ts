@@ -69,3 +69,8 @@ export function Session(): ParameterDecorator {
 export function Cookies(name?: string): ParameterDecorator {
   return createParamDecorator('Cookies', { name });
 }
+
+// @SignedCookies() 提取签名验证通过的 Cookie；传 name 时只取该项。
+export function SignedCookies(name?: string): ParameterDecorator {
+  return createParamDecorator('SignedCookies', { name });
+}

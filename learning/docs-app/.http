@@ -41,3 +41,18 @@ Accept: application/json
 GET {{baseUrl}}/context/host-param
 Host: other.example.net
 Accept: application/json
+
+### 1. 登录：看响应头里的 Set-Cookie，值形如 s%3Aadmin.<签名>
+GET {{baseUrl}}/demo/login
+
+### 2. 带合法签名的 Cookie：signedCookies 里能读到 role=admin
+GET {{baseUrl}}/demo/whoami
+Cookie: role=s%3Aadmin.KaTCh9g4%2FUIqDygb%2BppF0oSPALwMD0JUrCvLEWZ666w
+
+### 3. 篡改：把值 admin 手改成 root，签名没变 → signedCookies 为空
+GET {{baseUrl}}/demo/whoami
+Cookie: role=s%3Aroot.KaTCh9g4%2FUIqDygb%2BppF0oSPALwMD0JUrCvLEWZ666w
+
+### 4. 不签名的普通 Cookie：cookies 能读到，signedCookies 为空
+GET {{baseUrl}}/demo/whoami
+Cookie: role=admin
