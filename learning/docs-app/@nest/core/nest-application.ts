@@ -1,8 +1,10 @@
 // 使用 Express 的应用类型描述底层 HTTP 服务，但核心应用只依赖它的 listen 能力。
+import type { Server } from 'node:http';
 import type { Application, RequestHandler } from 'express';
 
 export class NestApplication {
   private initialized = false;
+  private server?: Server;
 
   constructor(
     private readonly httpServer: Application,
@@ -25,6 +27,20 @@ export class NestApplication {
     return new Promise((resolve, reject) => {
       const server = this.httpServer.listen(numericPort, () => resolve());
       server.once('error', reject);
+      this.server = server;
+    });
+  }
+
+  // 关闭 listen() 启动的服务；没有启动过时直接返回。
+  close(): Promise<void> {
+    const server = this.server;
+    if (!server) {
+      return Promise.resolve();
+    }
+
+    this.server = undefined;
+    return new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
     });
   }
 
