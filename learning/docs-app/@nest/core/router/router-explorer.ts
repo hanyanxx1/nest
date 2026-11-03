@@ -95,6 +95,8 @@ const PARAM_RESOLVERS: Partial<Record<string, ParamResolver>> = {
     const signedCookies = (request as { signedCookies?: Record<string, string> }).signedCookies;
     return signedCookies === undefined ? undefined : getNamedValue(signedCookies, name);
   },
+  // 官方做法：body-parser 的 verify 回调把原始 Buffer 存到 request.rawBody；未开启 rawBody 时为 undefined。
+  RawBody: ({ request }) => (request as { rawBody?: Buffer }).rawBody,
 };
 
 function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {

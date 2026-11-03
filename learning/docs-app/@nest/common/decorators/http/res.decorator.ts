@@ -74,3 +74,8 @@ export function Cookies(name?: string): ParameterDecorator {
 export function SignedCookies(name?: string): ParameterDecorator {
   return createParamDecorator('SignedCookies', { name });
 }
+
+// @RawBody() 提取未经解析的原始请求体 Buffer；需要在创建应用时开启 rawBody。
+export function RawBody(): ParameterDecorator {
+  return createParamDecorator('RawBody');
+}

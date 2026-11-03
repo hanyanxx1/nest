@@ -8,7 +8,8 @@ import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
 
 export class NestFactory {
-  static async create(moduleType: Function): Promise<NestApplication> {
+  // options.rawBody 为 true 时，保留原始请求体，供 @RawBody() 读取。
+  static async create(moduleType: Function, options: { rawBody?: boolean } = {}): Promise<NestApplication> {
     const controllerTypes = readClassMetadata(moduleType, 'controllers');
     const providerTypes = readClassMetadata(moduleType, 'providers');
 
@@ -18,7 +19,16 @@ export class NestFactory {
     }
 
     const httpServer = express();
-    httpServer.use(express.json());
+    httpServer.use(
+      express.json({
+        // verify 在解析前拿到原始字节；开启 rawBody 时存到 request.rawBody。
+        verify: options.rawBody
+          ? (request, _response, buffer) => {
+              (request as { rawBody?: Buffer }).rawBody = buffer;
+            }
+          : undefined,
+      }),
+    );
 
     const adapter = new ExpressAdapter(httpServer);
     const responseController = new RouterResponseController(adapter);
