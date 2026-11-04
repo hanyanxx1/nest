@@ -62,13 +62,19 @@ export class NestFactory {
 
       const routes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
 
-      // 在适配器注册路由前检测，避免发现错误时应用已注册部分路由。
-      if (options.routeConflictPolicy?.shadow === 'error') {
-        const conflicts = RouteConflictDetector.detectShadowConflicts(routes);
+      // 先收集所有已配置为 error 的冲突，再注册任何路由。
+      const conflicts: string[] = [];
 
-        if (conflicts.length > 0) {
-          throw new RouteConflictException(conflicts);
-        }
+      if (options.routeConflictPolicy?.duplicate === 'error') {
+        conflicts.push(...RouteConflictDetector.detectDuplicateConflicts(routes));
+      }
+
+      if (options.routeConflictPolicy?.shadow === 'error') {
+        conflicts.push(...RouteConflictDetector.detectShadowConflicts(routes));
+      }
+
+      if (conflicts.length > 0) {
+        throw new RouteConflictException(conflicts);
       }
 
       routerExplorer.registerRoutes(

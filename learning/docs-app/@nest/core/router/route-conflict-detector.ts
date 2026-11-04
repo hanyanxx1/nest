@@ -7,6 +7,23 @@ export interface RouteConflictCandidate {
 }
 
 export class RouteConflictDetector {
+  static detectDuplicateConflicts(routes: readonly RouteConflictCandidate[]): string[] {
+    const conflicts: string[] = [];
+
+    for (const [index, earlier] of routes.entries()) {
+      for (const later of routes.slice(index + 1)) {
+        const isDuplicate =
+          earlier.method === later.method && earlier.path === later.path && earlier.host === later.host;
+
+        if (isDuplicate) {
+          conflicts.push(`${RequestMethod[earlier.method]} ${earlier.path} is registered more than once`);
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
   static detectShadowConflicts(routes: readonly RouteConflictCandidate[]): string[] {
     const conflicts: string[] = [];
 
