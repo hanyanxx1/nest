@@ -6,10 +6,20 @@ import { ExpressAdapter } from '../platform-express/adapters/express-adapter.js'
 import { NestApplication } from './nest-application.js';
 import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
+import type { RouteConflictPolicy, RouteResolutionStrategy } from '../common/index.js';
+import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
+import { RouteConflictDetector } from './router/route-conflict-detector.js';
 
 export class NestFactory {
   // options.rawBody 为 true 时，保留原始请求体，供 @RawBody() 读取。
-  static async create(moduleType: Function, options: { rawBody?: boolean } = {}): Promise<NestApplication> {
+  static async create(
+    moduleType: Function,
+    options: {
+      rawBody?: boolean;
+      routeConflictPolicy?: RouteConflictPolicy;
+      routeResolutionStrategy?: RouteResolutionStrategy;
+    } = {},
+  ): Promise<NestApplication> {
     const controllerTypes = readClassMetadata(moduleType, 'controllers');
     const providerTypes = readClassMetadata(moduleType, 'providers');
 
@@ -36,7 +46,7 @@ export class NestFactory {
 
     // 控制器实例化仍在 create() 里，路由注册推迟到 app.init()。
     const registerRoutes = (): void => {
-      for (const controllerType of controllerTypes) {
+      const controllers = controllerTypes.map((controllerType) => {
         const dependencies = readConstructorDependencies(controllerType);
 
         const argumentsForController = dependencies.map((dependency) => {
@@ -47,24 +57,35 @@ export class NestFactory {
           return instance;
         });
 
-        const controller = Reflect.construct(controllerType, argumentsForController) as object;
+        return Reflect.construct(controllerType, argumentsForController) as object;
+      });
 
-        routerExplorer.registerRoutes(
-          controller,
-          {
-            get: adapter.registerGet.bind(adapter),
-            post: adapter.registerPost.bind(adapter),
-            put: adapter.registerPut.bind(adapter),
-            delete: adapter.registerDelete.bind(adapter),
-            patch: adapter.registerPatch.bind(adapter),
-            options: adapter.registerOptions.bind(adapter),
-            head: adapter.registerHead.bind(adapter),
-            query: adapter.registerQuery.bind(adapter),
-            all: adapter.registerAll.bind(adapter),
-          },
-          responseController,
-        );
+      const routes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
+
+      // 在适配器注册路由前检测，避免发现错误时应用已注册部分路由。
+      if (options.routeConflictPolicy?.shadow === 'error') {
+        const conflicts = RouteConflictDetector.detectShadowConflicts(routes);
+
+        if (conflicts.length > 0) {
+          throw new RouteConflictException(conflicts);
+        }
       }
+
+      routerExplorer.registerRoutes(
+        routes,
+        {
+          get: adapter.registerGet.bind(adapter),
+          post: adapter.registerPost.bind(adapter),
+          put: adapter.registerPut.bind(adapter),
+          delete: adapter.registerDelete.bind(adapter),
+          patch: adapter.registerPatch.bind(adapter),
+          options: adapter.registerOptions.bind(adapter),
+          head: adapter.registerHead.bind(adapter),
+          query: adapter.registerQuery.bind(adapter),
+          all: adapter.registerAll.bind(adapter),
+        },
+        responseController,
+      );
     };
 
     return new NestApplication(httpServer, registerRoutes);

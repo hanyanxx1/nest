@@ -21,6 +21,7 @@ interface RouteDefinition {
 }
 
 interface DiscoveredRoute {
+  controller: object;
   methodName: string;
   method: RequestMethod;
   path: string;
@@ -205,6 +206,7 @@ export class RouterExplorer {
           const path = segments.length === 0 ? '/' : `/${segments.join('/')}`;
 
           routes.push({
+            controller,
             methodName: definition.methodName,
             method: definition.method,
             path,
@@ -221,7 +223,7 @@ export class RouterExplorer {
 
   /** 注册路由，并连接参数注入与响应处理流程。 */
   registerRoutes(
-    controller: object,
+    routes: DiscoveredRoute[],
     registerRoute: {
       get: (path: string, handler: Function) => unknown;
       post: (path: string, handler: Function) => unknown;
@@ -235,8 +237,6 @@ export class RouterExplorer {
     },
     responseController: RouterResponseController,
   ): void {
-    const routes = this.getRoutes(controller);
-
     // 集中映射已支持的方法，避免新增 HTTP 方法时继续扩展条件链。
     const registerByMethod: Partial<Record<RequestMethod, (path: string, handler: Function) => unknown>> = {
       [RequestMethod.GET]: registerRoute.get,
@@ -290,7 +290,8 @@ export class RouterExplorer {
           args[Number(paramIndex)] = value;
         }
 
-        const result = await route.callback.call(controller, ...args);
+        // 使用收集路由时保存的控制器实例调用处理器。
+        const result = await route.callback.call(route.controller, ...args);
 
         const httpCode: number | undefined = Reflect.getMetadata(HTTP_CODE_METADATA, route.callback);
         const statusCode = httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
