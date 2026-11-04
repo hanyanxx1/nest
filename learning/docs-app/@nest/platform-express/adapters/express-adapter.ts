@@ -15,35 +15,35 @@ export class ExpressAdapter {
     >,
   ) {}
   registerGet(path: string, handler: Function): unknown {
-    return this.httpServer.get(path, handler as RequestHandler);
+    return this.httpServer.get(this.normalizePath(path), handler as RequestHandler);
   }
 
   registerPost(path: string, handler: Function): unknown {
-    return this.httpServer.post(path, handler as RequestHandler);
+    return this.httpServer.post(this.normalizePath(path), handler as RequestHandler);
   }
 
   registerPut(path: string, handler: Function): unknown {
-    return this.httpServer.put(path, handler as RequestHandler);
+    return this.httpServer.put(this.normalizePath(path), handler as RequestHandler);
   }
 
   // 使用 Express 的 delete 方法注册 DELETE 路由。
   registerDelete(path: string, handler: Function): unknown {
-    return this.httpServer.delete(path, handler as RequestHandler);
+    return this.httpServer.delete(this.normalizePath(path), handler as RequestHandler);
   }
 
   // 使用 Express 的 patch 方法注册 PATCH 路由。
   registerPatch(path: string, handler: Function): unknown {
-    return this.httpServer.patch(path, handler as RequestHandler);
+    return this.httpServer.patch(this.normalizePath(path), handler as RequestHandler);
   }
 
   // 使用 Express 的 options 方法注册 OPTIONS 路由。
   registerOptions(path: string, handler: Function): unknown {
-    return this.httpServer.options(path, handler as RequestHandler);
+    return this.httpServer.options(this.normalizePath(path), handler as RequestHandler);
   }
 
   // 使用 Express 的 head 方法注册 HEAD 路由。
   registerHead(path: string, handler: Function): unknown {
-    return this.httpServer.head(path, handler as RequestHandler);
+    return this.httpServer.head(this.normalizePath(path), handler as RequestHandler);
   }
 
   // 使用 Express 的 query 方法注册 HTTP QUERY 路由。
@@ -52,12 +52,17 @@ export class ExpressAdapter {
       throw new Error('当前 Express HTTP 服务不支持 QUERY 路由');
     }
 
-    return this.httpServer.query(path, handler as RequestHandler);
+    return this.httpServer.query(this.normalizePath(path), handler as RequestHandler);
   }
 
   // 使用 Express 的 all 方法，让同一路径接收不同 HTTP 方法。
   registerAll(path: string, handler: Function): unknown {
-    return this.httpServer.all(path, handler as RequestHandler);
+    return this.httpServer.all(this.normalizePath(path), handler as RequestHandler);
+  }
+
+  // Express 5 要求通配符命名；花括号形式也能匹配空后缀。
+  private normalizePath(path: string): string {
+    return path.endsWith('/*') ? `${path.slice(0, -1)}{*path}` : path;
   }
 
   reply(response: ExpressResponseLike, body: unknown, statusCode?: number): unknown {
