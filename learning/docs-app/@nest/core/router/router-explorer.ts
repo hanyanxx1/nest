@@ -225,19 +225,33 @@ export class RouterExplorer {
     registerRoute: {
       get: (path: string, handler: Function) => unknown;
       post: (path: string, handler: Function) => unknown;
+      put: (path: string, handler: Function) => unknown;
+      delete: (path: string, handler: Function) => unknown;
+      patch: (path: string, handler: Function) => unknown;
+      options: (path: string, handler: Function) => unknown;
+      head: (path: string, handler: Function) => unknown;
+      query: (path: string, handler: Function) => unknown;
+      all: (path: string, handler: Function) => unknown;
     },
     responseController: RouterResponseController,
   ): void {
     const routes = this.getRoutes(controller);
 
-    for (const route of routes) {
-      const register =
-        route.method === RequestMethod.GET
-          ? registerRoute.get
-          : route.method === RequestMethod.POST
-            ? registerRoute.post
-            : undefined;
+    // 集中映射已支持的方法，避免新增 HTTP 方法时继续扩展条件链。
+    const registerByMethod: Partial<Record<RequestMethod, (path: string, handler: Function) => unknown>> = {
+      [RequestMethod.GET]: registerRoute.get,
+      [RequestMethod.POST]: registerRoute.post,
+      [RequestMethod.PUT]: registerRoute.put,
+      [RequestMethod.DELETE]: registerRoute.delete,
+      [RequestMethod.PATCH]: registerRoute.patch,
+      [RequestMethod.OPTIONS]: registerRoute.options,
+      [RequestMethod.HEAD]: registerRoute.head,
+      [RequestMethod.QUERY]: registerRoute.query,
+      [RequestMethod.ALL]: registerRoute.all,
+    };
 
+    for (const route of routes) {
+      const register = registerByMethod[route.method];
       if (!register) {
         throw new Error(`当前路由注册器暂不支持 HTTP 方法：${route.method}`);
       }

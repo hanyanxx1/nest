@@ -54,6 +54,13 @@ export class NestFactory {
           {
             get: adapter.registerGet.bind(adapter),
             post: adapter.registerPost.bind(adapter),
+            put: adapter.registerPut.bind(adapter),
+            delete: adapter.registerDelete.bind(adapter),
+            patch: adapter.registerPatch.bind(adapter),
+            options: adapter.registerOptions.bind(adapter),
+            head: adapter.registerHead.bind(adapter),
+            query: adapter.registerQuery.bind(adapter),
+            all: adapter.registerAll.bind(adapter),
           },
           responseController,
         );
