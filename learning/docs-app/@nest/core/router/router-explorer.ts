@@ -34,7 +34,18 @@ interface ParamDecoratorInfo {
   options?: {
     name?: string;
     passthrough?: boolean;
+    pipes?: unknown[];
+    schema?: unknown;
   };
+}
+
+// metadata 携带参数装饰器上的 schema，管道据此决定如何处理参数。
+interface PipeMetadata {
+  schema?: unknown;
+}
+
+interface PipeLike {
+  transform(value: unknown, metadata: PipeMetadata): unknown;
 }
 
 interface ParamResolverContext {
@@ -253,7 +264,16 @@ export class RouterExplorer {
             throw new Error(`当前不支持参数装饰器：${paramInfo.decorator}`);
           }
 
-          args[Number(paramIndex)] = resolve({ request, response, next }, paramInfo.options?.name);
+          let value = resolve({ request, response, next }, paramInfo.options?.name);
+
+          // 按声明顺序依次执行参数上的管道，每个管道的返回值交给下一个。
+          for (const pipe of paramInfo.options?.pipes ?? []) {
+            // 管道可以是类（需要实例化）或已经创建好的实例。
+            const instance = typeof pipe === 'function' ? new (pipe as new () => PipeLike)() : (pipe as PipeLike);
+            value = await instance.transform(value, { schema: paramInfo.options?.schema });
+          }
+
+          args[Number(paramIndex)] = value;
         }
 
         const result = await route.callback.call(controller, ...args);
