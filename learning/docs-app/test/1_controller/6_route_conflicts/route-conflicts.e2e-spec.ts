@@ -81,6 +81,22 @@ class AggregatedDuplicateController {
 @Module({ controllers: [AggregatedDuplicateController] })
 class AggregatedDuplicateModule {}
 
+@Controller('health')
+class AllAndGetRoutesController {
+  @All()
+  handleAll(): string {
+    return 'all methods';
+  }
+
+  @Get()
+  handleGet(): string {
+    return 'GET';
+  }
+}
+
+@Module({ controllers: [AllAndGetRoutesController] })
+class AllAndGetRoutesModule {}
+
 describe('Route conflicts and resolution order', () => {
   it('uses declaration order by default when a parameter route shadows a static route', async () => {
     const app = await NestFactory.create(UsersModule);
@@ -195,5 +211,14 @@ describe('Route conflicts and resolution order', () => {
 
     // 静态路由后声明，但 specificity 应让它先匹配。
     await request(app.getHttpServer()).get('/users/me').expect(200).expect('static route');
+  });
+
+  it('rejects initialization when All and GET methods overlap on the same path', async () => {
+    const app = await NestFactory.create(AllAndGetRoutesModule, {
+      routeConflictPolicy: { shadow: 'error' },
+    });
+
+    // 同一路径下，ALL 与 GET 的请求方法范围有重叠，应归类为 shadow。
+    await expect(app.init()).rejects.toThrow(/ALL .* overlaps GET /);
   });
 });

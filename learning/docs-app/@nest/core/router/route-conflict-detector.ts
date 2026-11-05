@@ -29,6 +29,14 @@ export class RouteConflictDetector {
 
     for (const [index, earlier] of routes.entries()) {
       for (const later of routes.slice(index + 1)) {
+        // 完全相同的 method/path/host 属于 duplicate，不重复归类为 shadow。
+        const isExactDuplicate =
+          earlier.method === later.method && earlier.path === later.path && earlier.host === later.host;
+
+        if (isExactDuplicate) {
+          continue;
+        }
+
         if (!this.methodsCanOverlap(earlier.method, later.method)) {
           continue;
         }
@@ -37,7 +45,7 @@ export class RouteConflictDetector {
           continue;
         }
 
-        if (!this.pathsHaveParameterLiteralOverlap(earlier.path, later.path)) {
+        if (!this.pathsCanOverlap(earlier.path, later.path)) {
           continue;
         }
 
@@ -72,15 +80,13 @@ export class RouteConflictDetector {
     });
   }
 
-  private static pathsHaveParameterLiteralOverlap(leftPath: string, rightPath: string): boolean {
+  private static pathsCanOverlap(leftPath: string, rightPath: string): boolean {
     const leftSegments = leftPath.split('/').filter(Boolean);
     const rightSegments = rightPath.split('/').filter(Boolean);
 
     if (leftSegments.length !== rightSegments.length) {
       return false;
     }
-
-    let hasParameterOverlap = false;
 
     for (const [index, leftSegment] of leftSegments.entries()) {
       const rightSegment = rightSegments[index];
@@ -92,14 +98,13 @@ export class RouteConflictDetector {
       const leftIsParameter = leftSegment.startsWith(':');
       const rightIsParameter = rightSegment.startsWith(':');
 
-      // 两个字面段不同才确定不重叠；只要一侧是参数段，就可能匹配同一路径。
+      // 两个不同的字面段不可能匹配同一请求；参数段可能与另一段重叠。
       if (!leftIsParameter && !rightIsParameter) {
         return false;
       }
-
-      hasParameterOverlap = true;
     }
 
-    return hasParameterOverlap;
+    // 相同路径也重叠；完全相同的路由已由 detectShadowConflicts 单独排除。
+    return true;
   }
 }
