@@ -6,7 +6,7 @@ import { ExpressAdapter } from '../platform-express/adapters/express-adapter.js'
 import { NestApplication } from './nest-application.js';
 import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
-import type { RouteConflictPolicy, RouteResolutionStrategy } from '../common/index.js';
+import { Logger, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
 import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 
@@ -43,6 +43,8 @@ export class NestFactory {
     const adapter = new ExpressAdapter(httpServer);
     const responseController = new RouterResponseController(adapter);
     const routerExplorer = new RouterExplorer();
+    // 冲突告警使用统一 Logger，并标记为应用上下文日志。
+    const logger = new Logger(NestApplication.name);
 
     // 控制器实例化仍在 create() 里，路由注册推迟到 app.init()。
     const registerRoutes = (): void => {
@@ -62,7 +64,24 @@ export class NestFactory {
 
       const routes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
 
-      // 先收集所有已配置为 error 的冲突，再注册任何路由。
+      // warn 只记录冲突，不阻止路由注册和应用初始化。
+      if (options.routeConflictPolicy?.duplicate === 'warn') {
+        const warnings = RouteConflictDetector.detectDuplicateConflicts(routes);
+
+        for (const warning of warnings) {
+          logger.warn(warning);
+        }
+      }
+
+      if (options.routeConflictPolicy?.shadow === 'warn') {
+        const warnings = RouteConflictDetector.detectShadowConflicts(routes);
+
+        for (const warning of warnings) {
+          logger.warn(warning);
+        }
+      }
+
+      // error 策略先收集全部冲突，再统一拒绝初始化。
       const conflicts: string[] = [];
 
       if (options.routeConflictPolicy?.duplicate === 'error') {

@@ -1,5 +1,7 @@
 import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '../../../@nest/common/index.js';
+import { vi } from 'vitest';
 import request from 'supertest';
 
 @Controller('users')
@@ -94,5 +96,37 @@ describe('Route conflicts and resolution order', () => {
 
     // 同一个异常消息必须同时列出两组不同路径的冲突。
     await expect(app.init()).rejects.toThrow(/GET \/aggregate\/first[\s\S]*GET \/aggregate\/second/);
+  });
+
+  it('reports duplicate conflicts through Logger.warn and continues initialization', async () => {
+    const warning = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
+    try {
+      const app = await NestFactory.create(DuplicateModule, {
+        routeConflictPolicy: { duplicate: 'warn' },
+      });
+
+      // warn 策略应调用学习版 Logger，但不阻止初始化。
+      await app.init();
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('GET /duplicate/same'));
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('reports shadow conflicts through Logger.warn and continues initialization', async () => {
+    const warning = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
+    try {
+      const app = await NestFactory.create(UsersModule, {
+        routeConflictPolicy: { shadow: 'warn' },
+      });
+
+      // shadow 冲突应通过 Logger 告警，但不阻止初始化。
+      await app.init();
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('GET /users/:id overlaps GET /users/me'));
+    } finally {
+      warning.mockRestore();
+    }
   });
 });
