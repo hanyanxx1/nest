@@ -9,6 +9,7 @@ import { RouterResponseController } from './router/router-response-controller.js
 import { Logger, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
 import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
+import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
 
 export class NestFactory {
   // options.rawBody 为 true 时，保留原始请求体，供 @RawBody() 读取。
@@ -62,7 +63,13 @@ export class NestFactory {
         return Reflect.construct(controllerType, argumentsForController) as object;
       });
 
-      const routes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
+      const discoveredRoutes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
+
+      // specificity 按路径具体程度排序；默认策略保留发现顺序。
+      const routes =
+        options.routeResolutionStrategy === 'specificity'
+          ? RouteSpecificitySorter.sort(discoveredRoutes)
+          : discoveredRoutes;
 
       // warn 只记录冲突，不阻止路由注册和应用初始化。
       if (options.routeConflictPolicy?.duplicate === 'warn') {

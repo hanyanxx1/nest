@@ -129,4 +129,46 @@ describe('Route conflicts and resolution order', () => {
       warning.mockRestore();
     }
   });
+
+  it('does not log duplicate conflicts when the policy is off', async () => {
+    const warning = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
+    try {
+      const app = await NestFactory.create(DuplicateModule, {
+        routeConflictPolicy: { duplicate: 'off' },
+      });
+
+      // off 应静默忽略冲突，同时允许应用初始化。
+      await app.init();
+      expect(warning).not.toHaveBeenCalled();
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('does not log shadow conflicts when the policy is off', async () => {
+    const warning = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
+    try {
+      const app = await NestFactory.create(UsersModule, {
+        routeConflictPolicy: { shadow: 'off' },
+      });
+
+      // shadow:off 应静默忽略参数与静态路由冲突。
+      await app.init();
+      expect(warning).not.toHaveBeenCalled();
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('prioritizes a static route with the specificity strategy', async () => {
+    const app = await NestFactory.create(UsersModule, {
+      routeResolutionStrategy: 'specificity',
+    });
+    await app.init();
+
+    // 静态路由后声明，但 specificity 应让它先匹配。
+    await request(app.getHttpServer()).get('/users/me').expect(200).expect('static route');
+  });
 });
