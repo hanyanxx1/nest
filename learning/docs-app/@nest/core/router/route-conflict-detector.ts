@@ -80,7 +80,7 @@ export class RouteConflictDetector {
       return false;
     }
 
-    let hasParameterLiteralDifference = false;
+    let hasParameterOverlap = false;
 
     for (const [index, leftSegment] of leftSegments.entries()) {
       const rightSegment = rightSegments[index];
@@ -92,15 +92,14 @@ export class RouteConflictDetector {
       const leftIsParameter = leftSegment.startsWith(':');
       const rightIsParameter = rightSegment.startsWith(':');
 
-      // 参数段与字面段可能匹配同一请求；其他冲突类型后续再扩展。
-      if (leftIsParameter !== rightIsParameter) {
-        hasParameterLiteralDifference = true;
-        continue;
+      // 两个字面段不同才确定不重叠；只要一侧是参数段，就可能匹配同一路径。
+      if (!leftIsParameter && !rightIsParameter) {
+        return false;
       }
 
-      return false;
+      hasParameterOverlap = true;
     }
 
-    return hasParameterLiteralDifference;
+    return hasParameterOverlap;
   }
 }

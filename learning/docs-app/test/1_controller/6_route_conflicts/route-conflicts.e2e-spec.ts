@@ -1,4 +1,4 @@
-import { Controller, Get, Module } from '@nestjs/common';
+import { All, Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '../../../@nest/common/index.js';
 import { vi } from 'vitest';
@@ -20,6 +20,22 @@ class UsersController {
 
 @Module({ controllers: [UsersController] })
 class UsersModule {}
+
+@Controller('accounts')
+class OverlappingParameterRoutesController {
+  @Get(':id')
+  findById(): string {
+    return 'id';
+  }
+
+  @Get(':slug')
+  findBySlug(): string {
+    return 'slug';
+  }
+}
+
+@Module({ controllers: [OverlappingParameterRoutesController] })
+class OverlappingParameterRoutesModule {}
 
 // 两个处理器映射到完全相同的 HTTP 方法和路径，用于验证 duplicate 检测。
 @Controller('duplicate')
@@ -79,6 +95,15 @@ describe('Route conflicts and resolution order', () => {
     });
 
     await expect(app.init()).rejects.toThrow('Conflicting HTTP routes detected');
+  });
+
+  it('rejects initialization when two parameter routes can match the same request', async () => {
+    const app = await NestFactory.create(OverlappingParameterRoutesModule, {
+      routeConflictPolicy: { shadow: 'error' },
+    });
+
+    // 两种参数名不同，但请求可以同时匹配两条路由，因此应报告 shadow 冲突。
+    await expect(app.init()).rejects.toThrow('GET /accounts/:id overlaps GET /accounts/:slug');
   });
 
   it('rejects initialization when duplicate conflicts use the error policy', async () => {
