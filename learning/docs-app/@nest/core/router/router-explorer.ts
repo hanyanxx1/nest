@@ -11,6 +11,7 @@ import {
 } from '../../common/constants.js';
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 import { RouterResponseController } from './router-response-controller.js';
+import { Logger } from '../../common/index.js';
 
 interface RouteDefinition {
   methodName: string;
@@ -116,6 +117,8 @@ function getNamedValue<T>(source: Record<string, T>, name?: string): unknown {
 }
 
 export class RouterExplorer {
+  private readonly logger = new Logger(RouterExplorer.name);
+
   /** 读取 @Controller() 设置的路径前缀。 */
   explore(controller: object): string[] {
     const controllerType = controller.constructor;
@@ -298,6 +301,8 @@ export class RouterExplorer {
 
         return responseController.apply(result, response, statusCode, paramDecorators);
       });
+      // 适配器成功注册后，记录 HTTP 方法与完整路径。
+      this.logger.log(`Mapped {${route.path}, ${RequestMethod[route.method]}} route`);
     }
   }
 }

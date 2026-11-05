@@ -1,9 +1,11 @@
 // 使用 Express 的应用类型描述底层 HTTP 服务，但核心应用只依赖它的 listen 能力。
 import type { Server } from 'node:http';
 import type { Application, RequestHandler } from 'express';
+import { Logger } from '../common/index.js';
 
 export class NestApplication {
   private initialized = false;
+  private readonly logger = new Logger(NestApplication.name);
   private server?: Server;
 
   constructor(
@@ -26,7 +28,13 @@ export class NestApplication {
 
     return new Promise((resolve, reject) => {
       const server = this.httpServer.listen(numericPort, () => resolve());
-      server.once('error', reject);
+
+      // 记录监听错误，同时把原错误继续交给调用方。
+      server.once('error', (error) => {
+        this.logger.error(error.toString());
+        reject(error);
+      });
+
       this.server = server;
     });
   }
@@ -50,12 +58,14 @@ export class NestApplication {
     return this;
   }
 
-  // 只初始化一次：此时 app.use() 注册的中间件已经在前，路由才挂上去。
+  // 只初始化一次：路由注册成功后输出就绪日志。
   async init(): Promise<void> {
     if (this.initialized) {
       return;
     }
+
     this.registerRoutes();
     this.initialized = true;
+    this.logger.log('Nest application successfully started');
   }
 }

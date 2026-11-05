@@ -21,6 +21,10 @@ export class NestFactory {
       routeResolutionStrategy?: RouteResolutionStrategy;
     } = {},
   ): Promise<NestApplication> {
+    // 对应官方在扫描应用模块前输出的启动日志。
+    const factoryLogger = new Logger(NestFactory.name);
+    factoryLogger.log('Starting Nest application...');
+
     const controllerTypes = readClassMetadata(moduleType, 'controllers');
     const providerTypes = readClassMetadata(moduleType, 'providers');
 
