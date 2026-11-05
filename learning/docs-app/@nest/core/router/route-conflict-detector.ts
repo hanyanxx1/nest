@@ -84,11 +84,25 @@ export class RouteConflictDetector {
     const leftSegments = leftPath.split('/').filter(Boolean);
     const rightSegments = rightPath.split('/').filter(Boolean);
 
+    const isWildcard = (segment: string | undefined): boolean =>
+      segment !== undefined && (segment.startsWith('*') || (segment.startsWith('{*') && segment.endsWith('}')));
+
+    const leftEndsInWildcard = isWildcard(leftSegments[leftSegments.length - 1]);
+    const rightEndsInWildcard = isWildcard(rightSegments[rightSegments.length - 1]);
+
     if (leftSegments.length !== rightSegments.length) {
-      return false;
+      // 只有较短路径以末尾 wildcard 结束时，才能吸收路径段数差。
+      const shorterEndsInWildcard =
+        leftSegments.length < rightSegments.length ? leftEndsInWildcard : rightEndsInWildcard;
+
+      if (!shorterEndsInWildcard) {
+        return false;
+      }
     }
 
-    for (const [index, leftSegment] of leftSegments.entries()) {
+    const sharedLength = Math.min(leftSegments.length, rightSegments.length);
+
+    for (const [index, leftSegment] of leftSegments.slice(0, sharedLength).entries()) {
       const rightSegment = rightSegments[index];
 
       if (leftSegment === rightSegment) {
@@ -97,17 +111,13 @@ export class RouteConflictDetector {
 
       const leftIsParameter = leftSegment.startsWith(':');
       const rightIsParameter = rightSegment.startsWith(':');
-      const leftIsWildcard = leftSegment.startsWith('*') || (leftSegment.startsWith('{*') && leftSegment.endsWith('}'));
-      const rightIsWildcard =
-        rightSegment.startsWith('*') || (rightSegment.startsWith('{*') && rightSegment.endsWith('}'));
 
-      // 参数段或通配符段可以与另一条路由的不同段匹配。
-      if (!leftIsParameter && !rightIsParameter && !leftIsWildcard && !rightIsWildcard) {
+      // 参数段或 wildcard 段可以与另一条路由的对应段重叠。
+      if (!leftIsParameter && !rightIsParameter && !isWildcard(leftSegment) && !isWildcard(rightSegment)) {
         return false;
       }
     }
 
-    // 同路径也会重叠；完全相同的路由对已在 detectShadowConflicts 中排除。
     return true;
   }
 }

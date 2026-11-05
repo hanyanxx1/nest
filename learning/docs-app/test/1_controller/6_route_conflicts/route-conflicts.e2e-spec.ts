@@ -113,6 +113,22 @@ class WildcardAndStaticRoutesController {
 @Module({ controllers: [WildcardAndStaticRoutesController] })
 class WildcardAndStaticRoutesModule {}
 
+@Controller('reports')
+class MultiSegmentWildcardRoutesController {
+  @Get('*')
+  findAny(): string {
+    return 'wildcard';
+  }
+
+  @Get('archive/2024')
+  findArchive(): string {
+    return 'archive';
+  }
+}
+
+@Module({ controllers: [MultiSegmentWildcardRoutesController] })
+class MultiSegmentWildcardRoutesModule {}
+
 describe('Route conflicts and resolution order', () => {
   it('uses declaration order by default when a parameter route shadows a static route', async () => {
     const app = await NestFactory.create(UsersModule);
@@ -245,5 +261,14 @@ describe('Route conflicts and resolution order', () => {
 
     // 通配符也能匹配静态路由的路径，应在初始化时报告重叠。
     await expect(app.init()).rejects.toThrow(/GET .*overlaps GET .*summary/);
+  });
+
+  it('rejects initialization when a trailing wildcard overlaps a deeper static route', async () => {
+    const app = await NestFactory.create(MultiSegmentWildcardRoutesModule, {
+      routeConflictPolicy: { shadow: 'error' },
+    });
+
+    // /reports/* 能覆盖 /reports/archive/2024，应在初始化时报告冲突。
+    await expect(app.init()).rejects.toThrow(/overlaps.*archive\/2024/);
   });
 });
