@@ -97,14 +97,17 @@ export class RouteConflictDetector {
 
       const leftIsParameter = leftSegment.startsWith(':');
       const rightIsParameter = rightSegment.startsWith(':');
+      const leftIsWildcard = leftSegment.startsWith('*') || (leftSegment.startsWith('{*') && leftSegment.endsWith('}'));
+      const rightIsWildcard =
+        rightSegment.startsWith('*') || (rightSegment.startsWith('{*') && rightSegment.endsWith('}'));
 
-      // 两个不同的字面段不可能匹配同一请求；参数段可能与另一段重叠。
-      if (!leftIsParameter && !rightIsParameter) {
+      // 参数段或通配符段可以与另一条路由的不同段匹配。
+      if (!leftIsParameter && !rightIsParameter && !leftIsWildcard && !rightIsWildcard) {
         return false;
       }
     }
 
-    // 相同路径也重叠；完全相同的路由已由 detectShadowConflicts 单独排除。
+    // 同路径也会重叠；完全相同的路由对已在 detectShadowConflicts 中排除。
     return true;
   }
 }

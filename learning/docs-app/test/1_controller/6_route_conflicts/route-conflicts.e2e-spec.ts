@@ -97,6 +97,22 @@ class AllAndGetRoutesController {
 @Module({ controllers: [AllAndGetRoutesController] })
 class AllAndGetRoutesModule {}
 
+@Controller('reports')
+class WildcardAndStaticRoutesController {
+  @Get('*')
+  findAny(): string {
+    return 'wildcard';
+  }
+
+  @Get('summary')
+  findSummary(): string {
+    return 'static';
+  }
+}
+
+@Module({ controllers: [WildcardAndStaticRoutesController] })
+class WildcardAndStaticRoutesModule {}
+
 describe('Route conflicts and resolution order', () => {
   it('uses declaration order by default when a parameter route shadows a static route', async () => {
     const app = await NestFactory.create(UsersModule);
@@ -220,5 +236,14 @@ describe('Route conflicts and resolution order', () => {
 
     // 同一路径下，ALL 与 GET 的请求方法范围有重叠，应归类为 shadow。
     await expect(app.init()).rejects.toThrow(/ALL .* overlaps GET /);
+  });
+
+  it('rejects initialization when a wildcard route overlaps a static route', async () => {
+    const app = await NestFactory.create(WildcardAndStaticRoutesModule, {
+      routeConflictPolicy: { shadow: 'error' },
+    });
+
+    // 通配符也能匹配静态路由的路径，应在初始化时报告重叠。
+    await expect(app.init()).rejects.toThrow(/GET .*overlaps GET .*summary/);
   });
 });
