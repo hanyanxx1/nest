@@ -36,6 +36,33 @@ class DuplicateController {
 @Module({ controllers: [DuplicateController] })
 class DuplicateModule {}
 
+// 两组不同路径各重复注册一次，用于确认异常消息包含全部冲突。
+@Controller('aggregate')
+class AggregatedDuplicateController {
+  @Get('first')
+  firstA(): string {
+    return 'first A';
+  }
+
+  @Get('first')
+  firstB(): string {
+    return 'first B';
+  }
+
+  @Get('second')
+  secondA(): string {
+    return 'second A';
+  }
+
+  @Get('second')
+  secondB(): string {
+    return 'second B';
+  }
+}
+
+@Module({ controllers: [AggregatedDuplicateController] })
+class AggregatedDuplicateModule {}
+
 describe('Route conflicts and resolution order', () => {
   it('uses declaration order by default when a parameter route shadows a static route', async () => {
     const app = await NestFactory.create(UsersModule);
@@ -58,5 +85,14 @@ describe('Route conflicts and resolution order', () => {
     });
 
     await expect(app.init()).rejects.toThrow('Conflicting HTTP routes detected');
+  });
+
+  it('includes all duplicate conflicts in the initialization error', async () => {
+    const app = await NestFactory.create(AggregatedDuplicateModule, {
+      routeConflictPolicy: { duplicate: 'error' },
+    });
+
+    // 同一个异常消息必须同时列出两组不同路径的冲突。
+    await expect(app.init()).rejects.toThrow(/GET \/aggregate\/first[\s\S]*GET \/aggregate\/second/);
   });
 });
