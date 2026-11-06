@@ -24,8 +24,18 @@ export class RouteConflictDetector {
     return conflicts;
   }
 
-  static detectShadowConflicts(routes: readonly RouteConflictCandidate[]): string[] {
+  static detectShadowConflicts(
+    routes: readonly RouteConflictCandidate[],
+    declarationOrder?: readonly RouteConflictCandidate[],
+  ): string[] {
     const conflicts: string[] = [];
+    const declarationIndices = new Map<RouteConflictCandidate, number>();
+
+    if (declarationOrder) {
+      declarationOrder.forEach((route, index) => {
+        declarationIndices.set(route, index);
+      });
+    }
 
     for (const [index, earlier] of routes.entries()) {
       for (const later of routes.slice(index + 1)) {
@@ -47,6 +57,20 @@ export class RouteConflictDetector {
 
         if (!this.pathsCanOverlap(earlier.path, later.path)) {
           continue;
+        }
+
+        if (declarationOrder) {
+          const earlierDeclarationIndex = declarationIndices.get(earlier);
+          const laterDeclarationIndex = declarationIndices.get(later);
+
+          // 排序后靠前的路由原本声明得更晚，说明 specificity 已把它提升为优先路由。
+          if (
+            earlierDeclarationIndex !== undefined &&
+            laterDeclarationIndex !== undefined &&
+            earlierDeclarationIndex > laterDeclarationIndex
+          ) {
+            continue;
+          }
         }
 
         conflicts.push(

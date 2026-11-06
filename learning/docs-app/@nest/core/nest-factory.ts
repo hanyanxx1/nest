@@ -75,6 +75,11 @@ export class NestFactory {
           ? RouteSpecificitySorter.sort(discoveredRoutes)
           : discoveredRoutes;
 
+      const shadowConflicts = RouteConflictDetector.detectShadowConflicts(
+        routes,
+        options.routeResolutionStrategy === 'specificity' ? discoveredRoutes : undefined,
+      );
+
       // warn 只记录冲突，不阻止路由注册和应用初始化。
       if (options.routeConflictPolicy?.duplicate === 'warn') {
         const warnings = RouteConflictDetector.detectDuplicateConflicts(routes);
@@ -85,9 +90,7 @@ export class NestFactory {
       }
 
       if (options.routeConflictPolicy?.shadow === 'warn') {
-        const warnings = RouteConflictDetector.detectShadowConflicts(routes);
-
-        for (const warning of warnings) {
+        for (const warning of shadowConflicts) {
           logger.warn(warning);
         }
       }
@@ -100,7 +103,7 @@ export class NestFactory {
       }
 
       if (options.routeConflictPolicy?.shadow === 'error') {
-        conflicts.push(...RouteConflictDetector.detectShadowConflicts(routes));
+        conflicts.push(...shadowConflicts);
       }
 
       if (conflicts.length > 0) {
