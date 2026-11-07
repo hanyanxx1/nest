@@ -4,6 +4,7 @@ export * from './enums/index.js';
 export * from './pipes/index.js';
 export * from './services/logger.service.js';
 export type {
+  HttpRedirectResponse,
   ModuleMetadata,
   RouteConflictPolicy,
   RouteConflictPolicyLevel,

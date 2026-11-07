@@ -1,6 +1,8 @@
-import { Controller, Get, Module, Redirect } from '@nestjs/common';
+import { Controller, Get, Module, Redirect, Res } from '@nestjs/common';
+import type { Response as ExpressResponse } from 'express';
 import { NestFactory } from '@nestjs/core';
 import request from 'supertest';
+import type { HttpRedirectResponse } from '@nestjs/common';
 
 @Controller('cats')
 class RedirectionController {
@@ -18,12 +20,18 @@ class RedirectionController {
 
   @Get('dynamic')
   @Redirect('https://nestjs.com', 301)
-  getDynamicRedirect(): { url: string; statusCode: number } {
+  getDynamicRedirect(): HttpRedirectResponse {
     // 返回值应覆盖装饰器上的地址和状态码。
     return {
       url: 'https://docs.nestjs.com/v5/',
       statusCode: 307,
     };
+  }
+
+  @Get('native-redirect')
+  nativeRedirect(@Res() response: ExpressResponse): void {
+    // 验证可以通过原生 Express Response 直接重定向。
+    response.redirect(307, 'https://docs.nestjs.com/native');
   }
 }
 
@@ -53,5 +61,15 @@ describe('Redirection', () => {
       .get('/cats/dynamic')
       .expect(307)
       .expect('Location', 'https://docs.nestjs.com/v5/');
+  });
+
+  it('redirects through the native Express response object', async () => {
+    const app = await NestFactory.create(RedirectionModule);
+    await app.init();
+
+    await request(app.getHttpServer())
+      .get('/cats/native-redirect')
+      .expect(307)
+      .expect('Location', 'https://docs.nestjs.com/native');
   });
 });
