@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 interface ResponseAdapter {
   reply(response: unknown, body: unknown, statusCode?: number): unknown;
+  setHeader(response: unknown, name: string, value: string): unknown;
 }
 interface ParamDecoratorMetadata {
   decorator: string;
@@ -10,6 +11,12 @@ interface ParamDecoratorMetadata {
 
 export class RouterResponseController {
   constructor(private readonly applicationRef: ResponseAdapter) {}
+
+  setHeaders(response: unknown, headers: Array<{ name: string; value: string }>): void {
+    for (const { name, value } of headers) {
+      this.applicationRef.setHeader(response, name, value);
+    }
+  }
 
   apply(
     result: unknown,

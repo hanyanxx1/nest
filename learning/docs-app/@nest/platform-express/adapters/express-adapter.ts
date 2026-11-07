@@ -5,6 +5,7 @@ interface ExpressResponseLike {
   status(statusCode: number): this;
   json(body: unknown): this;
   send(body?: string): this;
+  setHeader(name: string, value: string): this;
 }
 
 export class ExpressAdapter {
@@ -63,6 +64,10 @@ export class ExpressAdapter {
   // Express 5 要求通配符命名；花括号形式也能匹配空后缀。
   private normalizePath(path: string): string {
     return path.endsWith('/*') ? `${path.slice(0, -1)}{*path}` : path;
+  }
+
+  setHeader(response: unknown, name: string, value: string): unknown {
+    return (response as ExpressResponseLike).setHeader(name, value);
   }
 
   reply(response: ExpressResponseLike, body: unknown, statusCode?: number): unknown {

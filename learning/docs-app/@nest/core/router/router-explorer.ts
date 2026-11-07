@@ -8,6 +8,7 @@ import {
   PARAM_DECORATORS_METADATA,
   HTTP_CODE_METADATA,
   HOST_METADATA,
+  HEADERS_METADATA,
 } from '../../common/constants.js';
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 import { RouterResponseController } from './router-response-controller.js';
@@ -270,6 +271,11 @@ export class RouterExplorer {
 
           (request as { hosts?: Record<string, string> }).hosts = hostParams;
         }
+
+        // host 检查通过后、处理方法执行前应用 @Header 元数据。
+        const responseHeaders: Array<{ name: string; value: string }> =
+          Reflect.getMetadata(HEADERS_METADATA, route.callback) ?? [];
+        responseController.setHeaders(response, responseHeaders);
 
         const paramDecorators = (Reflect.getOwnMetadata(PARAM_DECORATORS_METADATA, route.target, route.methodName) ||
           {}) as Record<number, ParamDecoratorInfo>;
