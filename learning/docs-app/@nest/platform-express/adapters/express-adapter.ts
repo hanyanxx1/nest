@@ -6,6 +6,7 @@ interface ExpressResponseLike {
   json(body: unknown): this;
   send(body?: string): this;
   setHeader(name: string, value: string): this;
+  redirect(statusCode: number, url: string): this;
 }
 
 export class ExpressAdapter {
@@ -68,6 +69,11 @@ export class ExpressAdapter {
 
   setHeader(response: unknown, name: string, value: string): unknown {
     return (response as ExpressResponseLike).setHeader(name, value);
+  }
+
+  redirect(response: unknown, statusCode: number, url: string): unknown {
+    // Express 根据状态码和地址发送 3xx 响应。
+    return (response as ExpressResponseLike).redirect(statusCode, url);
   }
 
   reply(response: ExpressResponseLike, body: unknown, statusCode?: number): unknown {

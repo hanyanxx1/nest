@@ -6,3 +6,5 @@ export const PARAM_DECORATORS_METADATA = '__param_decorators__';
 export const HTTP_CODE_METADATA = '__httpCode__';
 export const HOST_METADATA = 'host';
 export const HEADERS_METADATA = '__headers__';
+// 路由执行阶段会读取这个重定向配置。
+export const REDIRECT_METADATA = '__redirect__';

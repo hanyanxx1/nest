@@ -9,6 +9,7 @@ import {
   HTTP_CODE_METADATA,
   HOST_METADATA,
   HEADERS_METADATA,
+  REDIRECT_METADATA,
 } from '../../common/constants.js';
 import { RequestMethod } from '../../common/enums/request-method.enum.js';
 import { RouterResponseController } from './router-response-controller.js';
@@ -301,6 +302,16 @@ export class RouterExplorer {
 
         // 使用收集路由时保存的控制器实例调用处理器。
         const result = await route.callback.call(route.controller, ...args);
+
+        const redirectMetadata: { url: string; statusCode?: number } | undefined = Reflect.getMetadata(
+          REDIRECT_METADATA,
+          route.callback,
+        );
+
+        if (redirectMetadata) {
+          // 有重定向配置时走重定向响应，不再走普通 reply。
+          return responseController.redirect(response, redirectMetadata.statusCode ?? 302, redirectMetadata.url);
+        }
 
         const httpCode: number | undefined = Reflect.getMetadata(HTTP_CODE_METADATA, route.callback);
         const statusCode = httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);

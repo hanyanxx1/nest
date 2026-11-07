@@ -3,6 +3,7 @@ import 'reflect-metadata';
 interface ResponseAdapter {
   reply(response: unknown, body: unknown, statusCode?: number): unknown;
   setHeader(response: unknown, name: string, value: string): unknown;
+  redirect(response: unknown, statusCode: number, url: string): unknown;
 }
 interface ParamDecoratorMetadata {
   decorator: string;
@@ -11,6 +12,11 @@ interface ParamDecoratorMetadata {
 
 export class RouterResponseController {
   constructor(private readonly applicationRef: ResponseAdapter) {}
+
+  redirect(response: unknown, statusCode: number, url: string): unknown {
+    // 由平台适配器执行重定向，core 不直接依赖 Express。
+    return this.applicationRef.redirect(response, statusCode, url);
+  }
 
   setHeaders(response: unknown, headers: Array<{ name: string; value: string }>): void {
     for (const { name, value } of headers) {
