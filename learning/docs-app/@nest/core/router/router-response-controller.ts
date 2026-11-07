@@ -13,8 +13,20 @@ interface ParamDecoratorMetadata {
 export class RouterResponseController {
   constructor(private readonly applicationRef: ResponseAdapter) {}
 
-  redirect(response: unknown, statusCode: number, url: string): unknown {
-    // 由平台适配器执行重定向，core 不直接依赖 Express。
+  redirect(result: unknown, response: unknown, redirectMetadata: { url: string; statusCode?: number }): unknown {
+    const dynamicRedirect =
+      result !== null && typeof result === 'object' ? (result as Record<string, unknown>) : undefined;
+
+    const returnedUrl = dynamicRedirect?.url;
+    const returnedStatusCode = dynamicRedirect?.statusCode;
+
+    // 返回对象只覆盖它提供的有效字段，其余字段沿用装饰器配置。
+    const url = typeof returnedUrl === 'string' && returnedUrl ? returnedUrl : redirectMetadata.url;
+    const statusCode =
+      typeof returnedStatusCode === 'number' && returnedStatusCode
+        ? returnedStatusCode
+        : (redirectMetadata.statusCode ?? 302);
+
     return this.applicationRef.redirect(response, statusCode, url);
   }
 

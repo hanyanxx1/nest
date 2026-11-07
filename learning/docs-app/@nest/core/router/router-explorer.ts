@@ -310,7 +310,7 @@ export class RouterExplorer {
 
         if (redirectMetadata) {
           // 有重定向配置时走重定向响应，不再走普通 reply。
-          return responseController.redirect(response, redirectMetadata.statusCode ?? 302, redirectMetadata.url);
+          return responseController.redirect(result, response, redirectMetadata);
         }
 
         const httpCode: number | undefined = Reflect.getMetadata(HTTP_CODE_METADATA, route.callback);

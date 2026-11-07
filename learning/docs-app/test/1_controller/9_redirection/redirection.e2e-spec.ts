@@ -15,6 +15,16 @@ class RedirectionController {
   getDocs(): void {
     // 验证省略状态码时使用默认值 302。
   }
+
+  @Get('dynamic')
+  @Redirect('https://nestjs.com', 301)
+  getDynamicRedirect(): { url: string; statusCode: number } {
+    // 返回值应覆盖装饰器上的地址和状态码。
+    return {
+      url: 'https://docs.nestjs.com/v5/',
+      statusCode: 307,
+    };
+  }
 }
 
 @Module({ controllers: [RedirectionController] })
@@ -33,5 +43,15 @@ describe('Redirection', () => {
     await app.init();
 
     await request(app.getHttpServer()).get('/cats/docs').expect(302).expect('Location', 'https://docs.nestjs.com');
+  });
+
+  it('uses redirect values returned by the handler instead of decorator values', async () => {
+    const app = await NestFactory.create(RedirectionModule);
+    await app.init();
+
+    await request(app.getHttpServer())
+      .get('/cats/dynamic')
+      .expect(307)
+      .expect('Location', 'https://docs.nestjs.com/v5/');
   });
 });
