@@ -46,6 +46,7 @@ interface ParamDecoratorInfo {
 // metadata 携带参数装饰器上的 schema，管道据此决定如何处理参数。
 interface PipeMetadata {
   schema?: unknown;
+  metatype?: unknown;
 }
 
 interface PipeLike {
@@ -261,6 +262,10 @@ export class RouterExplorer {
         throw new Error(`当前路由注册器暂不支持 HTTP 方法：${route.method}`);
       }
 
+      // 路由注册时读取一次方法参数的运行时类型，后续按参数索引传给对应管道。
+      const parameterTypesValue: unknown = Reflect.getMetadata('design:paramtypes', route.target, route.methodName);
+      const parameterTypes = Array.isArray(parameterTypesValue) ? parameterTypesValue : [];
+
       register(route.path, async (request: unknown, response: unknown, next: unknown) => {
         if (route.host !== undefined) {
           const hostParams = extractHostParams(route.host, request);
@@ -294,7 +299,11 @@ export class RouterExplorer {
           for (const pipe of paramInfo.options?.pipes ?? []) {
             // 管道可以是类（需要实例化）或已经创建好的实例。
             const instance = typeof pipe === 'function' ? new (pipe as new () => PipeLike)() : (pipe as PipeLike);
-            value = await instance.transform(value, { schema: paramInfo.options?.schema });
+            // 参数类型元数据与装饰器配置的 schema 一起交给管道。
+            value = await instance.transform(value, {
+              schema: paramInfo.options?.schema,
+              metatype: parameterTypes[Number(paramIndex)],
+            });
           }
 
           args[Number(paramIndex)] = value;
