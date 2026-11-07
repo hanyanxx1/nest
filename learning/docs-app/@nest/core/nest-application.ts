@@ -17,6 +17,12 @@ export class NestApplication {
     return this.httpServer;
   }
 
+  // 将 Express 应用级配置透传到底层 HTTP 服务，并支持链式调用。
+  set(setting: string, value: unknown): this {
+    this.httpServer.set(setting, value);
+    return this;
+  }
+
   async listen(port: string | number): Promise<void> {
     const numericPort = typeof port === 'number' ? port : Number(port);
     if (!Number.isInteger(numericPort) || numericPort < 0 || numericPort > 65535) {
