@@ -301,7 +301,9 @@ export class RouterExplorer {
         }
 
         // 使用收集路由时保存的控制器实例调用处理器。
-        const result = await route.callback.call(route.controller, ...args);
+        // 先等待 Promise，再把 Observable 转成最终值，供后续响应分支共用。
+        const handlerResult = await route.callback.call(route.controller, ...args);
+        const result = await responseController.transformToResult(handlerResult);
 
         const redirectMetadata: { url: string; statusCode?: number } | undefined = Reflect.getMetadata(
           REDIRECT_METADATA,

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { isObservable, lastValueFrom } from 'rxjs';
 
 interface ResponseAdapter {
   reply(response: unknown, body: unknown, statusCode?: number): unknown;
@@ -12,6 +13,15 @@ interface ParamDecoratorMetadata {
 
 export class RouterResponseController {
   constructor(private readonly applicationRef: ResponseAdapter) {}
+
+  // 将 Observable 转换为完成时最后发出的值；普通结果保持原样。
+  async transformToResult(resultOrDeferred: unknown): Promise<unknown> {
+    if (isObservable(resultOrDeferred)) {
+      return lastValueFrom(resultOrDeferred);
+    }
+
+    return resultOrDeferred;
+  }
 
   redirect(result: unknown, response: unknown, redirectMetadata: { url: string; statusCode?: number }): unknown {
     const dynamicRedirect =
