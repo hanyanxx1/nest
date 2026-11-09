@@ -67,6 +67,10 @@ export class ExpressAdapter {
     return path.endsWith('/*') ? `${path.slice(0, -1)}{*path}` : path;
   }
 
+  setStatus(response: unknown, statusCode: number): unknown {
+    return (response as ExpressResponseLike).status(statusCode);
+  }
+
   setHeader(response: unknown, name: string, value: string): unknown {
     return (response as ExpressResponseLike).setHeader(name, value);
   }

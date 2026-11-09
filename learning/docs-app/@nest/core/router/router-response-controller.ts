@@ -3,6 +3,7 @@ import { isObservable, lastValueFrom } from 'rxjs';
 
 interface ResponseAdapter {
   reply(response: unknown, body: unknown, statusCode?: number): unknown;
+  setStatus(response: unknown, statusCode: number): unknown;
   setHeader(response: unknown, name: string, value: string): unknown;
   redirect(response: unknown, statusCode: number, url: string): unknown;
 }
@@ -38,6 +39,10 @@ export class RouterResponseController {
         : (redirectMetadata.statusCode ?? 302);
 
     return this.applicationRef.redirect(response, statusCode, url);
+  }
+
+  setStatus(response: unknown, statusCode: number): void {
+    this.applicationRef.setStatus(response, statusCode);
   }
 
   setHeaders(response: unknown, headers: Array<{ name: string; value: string }>): void {

@@ -262,9 +262,17 @@ export class RouterExplorer {
         throw new Error(`当前路由注册器暂不支持 HTTP 方法：${route.method}`);
       }
 
-      // 路由注册时读取一次方法参数的运行时类型，后续按参数索引传给对应管道。
+      // 路由注册时读取一次方法参数的运行时类型。
       const parameterTypesValue: unknown = Reflect.getMetadata('design:paramtypes', route.target, route.methodName);
       const parameterTypes = Array.isArray(parameterTypesValue) ? parameterTypesValue : [];
+
+      // 按官方执行顺序，在每次请求调用控制器前确定并设置状态码。
+      const httpCode: number | undefined = Reflect.getMetadata(HTTP_CODE_METADATA, route.callback);
+
+      // 只把显式状态码或 POST 默认码传给最终 reply，避免覆盖 passthrough 中手动设置的状态。
+      const replyStatusCode = httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
+      // 控制器执行前仍要有 HTTP 默认状态；POST 默认 201，其余方法默认 200。
+      const statusCodeBeforeHandler = replyStatusCode ?? 200;
 
       register(route.path, async (request: unknown, response: unknown, next: unknown) => {
         if (route.host !== undefined) {
@@ -278,7 +286,9 @@ export class RouterExplorer {
           (request as { hosts?: Record<string, string> }).hosts = hostParams;
         }
 
-        // host 检查通过后、处理方法执行前应用 @Header 元数据。
+        // 状态码和 @Header 元数据都在调用控制器前应用到当前响应。
+        responseController.setStatus(response, statusCodeBeforeHandler);
+
         const responseHeaders: Array<{ name: string; value: string }> =
           Reflect.getMetadata(HEADERS_METADATA, route.callback) ?? [];
         responseController.setHeaders(response, responseHeaders);
@@ -324,10 +334,7 @@ export class RouterExplorer {
           return responseController.redirect(result, response, redirectMetadata);
         }
 
-        const httpCode: number | undefined = Reflect.getMetadata(HTTP_CODE_METADATA, route.callback);
-        const statusCode = httpCode ?? (route.method === RequestMethod.POST ? 201 : undefined);
-
-        return responseController.apply(result, response, statusCode, paramDecorators);
+        return responseController.apply(result, response, replyStatusCode, paramDecorators);
       });
       // 适配器成功注册后，记录 HTTP 方法与完整路径。
       this.logger.log(`Mapped {${route.path}, ${RequestMethod[route.method]}} route`);
