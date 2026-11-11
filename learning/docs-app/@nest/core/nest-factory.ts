@@ -7,7 +7,7 @@ import { NestApplication } from './nest-application.js';
 import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
 import { Logger, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
-import { OPTIONAL_DEPS_METADATA } from '../common/constants.js';
+import { OPTIONAL_DEPS_METADATA, PROPERTY_DEPS_METADATA } from '../common/constants.js';
 import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
@@ -72,7 +72,19 @@ export class NestFactory {
           throw new Error(`${controllerType.name} 依赖的 ${dependency.name} 未在 providers 中注册`);
         });
 
-        return Reflect.construct(controllerType, argumentsForController) as object;
+        const controller = Reflect.construct(controllerType, argumentsForController) as object;
+
+        // 属性装饰器把属性名和 token 写在控制器类上；这里查找实例并完成赋值。
+        for (const { key, type } of readPropertyDependencies(controllerType)) {
+          const dependency = providers.get(type);
+          if (dependency === undefined) {
+            throw new Error(`${controllerType.name} 属性依赖的 ${type.name} 未在 providers 中注册`);
+          }
+
+          Object.assign(controller, { [key]: dependency });
+        }
+
+        return controller;
       });
 
       const discoveredRoutes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
@@ -173,4 +185,36 @@ function readOptionalDependencies(controllerType: Function): number[] {
   }
 
   throw new Error(`${controllerType.name} 的可选依赖元数据无效`);
+}
+
+type PropertyDependency = {
+  key: string | symbol;
+  type: Function;
+};
+
+function readPropertyDependencies(controllerType: Function): PropertyDependency[] {
+  const value: unknown = Reflect.getMetadata(PROPERTY_DEPS_METADATA, controllerType);
+
+  if (value === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(value) && value.every(isPropertyDependency)) {
+    return value;
+  }
+
+  throw new Error(`${controllerType.name} 的属性依赖元数据无效`);
+}
+
+function isPropertyDependency(value: unknown): value is PropertyDependency {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  return (
+    'key' in value &&
+    (typeof value.key === 'string' || typeof value.key === 'symbol') &&
+    'type' in value &&
+    typeof value.type === 'function'
+  );
 }
