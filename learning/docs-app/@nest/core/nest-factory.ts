@@ -34,6 +34,16 @@ export class NestFactory {
       providers.set(providerType, Reflect.construct(providerType, []));
     }
 
+    // 先创建所有 Provider 实例，再处理属性依赖，避免依赖注册顺序影响查找。
+    for (const providerType of providerTypes) {
+      const provider = providers.get(providerType);
+      if (provider === undefined) {
+        throw new Error(`${providerType.name} Provider 实例未能创建`);
+      }
+
+      applyPropertyDependencies(providerType, provider, providers);
+    }
+
     const httpServer = express();
     httpServer.use(
       express.json({
@@ -73,16 +83,7 @@ export class NestFactory {
         });
 
         const controller = Reflect.construct(controllerType, argumentsForController) as object;
-
-        // 属性装饰器把属性名和 token 写在控制器类上；这里查找实例并完成赋值。
-        for (const { key, type } of readPropertyDependencies(controllerType)) {
-          const dependency = providers.get(type);
-          if (dependency === undefined) {
-            throw new Error(`${controllerType.name} 属性依赖的 ${type.name} 未在 providers 中注册`);
-          }
-
-          Object.assign(controller, { [key]: dependency });
-        }
+        applyPropertyDependencies(controllerType, controller, providers);
 
         return controller;
       });
@@ -217,4 +218,15 @@ function isPropertyDependency(value: unknown): value is PropertyDependency {
     'type' in value &&
     typeof value.type === 'function'
   );
+}
+
+function applyPropertyDependencies(instanceType: Function, instance: object, providers: Map<Function, object>): void {
+  for (const { key, type } of readPropertyDependencies(instanceType)) {
+    const dependency = providers.get(type);
+    if (dependency === undefined) {
+      throw new Error(`${instanceType.name} 属性依赖的 ${type.name} 未在 providers 中注册`);
+    }
+
+    Object.assign(instance, { [key]: dependency });
+  }
 }

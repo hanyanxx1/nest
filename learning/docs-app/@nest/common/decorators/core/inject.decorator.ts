@@ -7,8 +7,7 @@ type PropertyDependency = {
 
 export function Inject(token: Function): PropertyDecorator {
   return (target: Object, propertyKey: string | symbol) => {
-    // 装饰器收到 CatsController.prototype 和属性名 catsService；
-    // token 则是本测试要注入的 CatsService 类。
+    // 保存属性注入的 token 元数据；具体赋值由容器在实例创建后完成。
     const properties: PropertyDependency[] = Reflect.getMetadata(PROPERTY_DEPS_METADATA, target.constructor) ?? [];
 
     const updatedProperties = [
