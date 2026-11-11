@@ -7,6 +7,7 @@ import { NestApplication } from './nest-application.js';
 import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
 import { Logger, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
+import { OPTIONAL_DEPS_METADATA } from '../common/constants.js';
 import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
@@ -55,13 +56,20 @@ export class NestFactory {
     const registerRoutes = (): void => {
       const controllers = controllerTypes.map((controllerType) => {
         const dependencies = readConstructorDependencies(controllerType);
+        const optionalDependencyIndexes = readOptionalDependencies(controllerType);
 
-        const argumentsForController = dependencies.map((dependency) => {
+        const argumentsForController = dependencies.map((dependency, index) => {
           const instance = providers.get(dependency);
-          if (!instance) {
-            throw new Error(`${controllerType.name} 依赖的 ${dependency.name} 未在 providers 中注册`);
+          if (instance !== undefined) {
+            return instance;
           }
-          return instance;
+
+          // 只有标记为 Optional 的缺失依赖，才允许以 undefined 注入。
+          if (optionalDependencyIndexes.includes(index)) {
+            return undefined;
+          }
+
+          throw new Error(`${controllerType.name} 依赖的 ${dependency.name} 未在 providers 中注册`);
         });
 
         return Reflect.construct(controllerType, argumentsForController) as object;
@@ -151,4 +159,18 @@ function readConstructorDependencies(controllerType: Function): Function[] {
     return value;
   }
   throw new Error(`${controllerType.name} 的构造函数依赖元数据无效`);
+}
+
+function readOptionalDependencies(controllerType: Function): number[] {
+  const value: unknown = Reflect.getMetadata(OPTIONAL_DEPS_METADATA, controllerType);
+
+  if (value === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(value) && value.every((item): item is number => Number.isInteger(item) && item >= 0)) {
+    return value;
+  }
+
+  throw new Error(`${controllerType.name} 的可选依赖元数据无效`);
 }
