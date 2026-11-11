@@ -1,4 +1,4 @@
-import { Logger } from '../../../@nest/common/index.js';
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const logCases = [

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '../../../@nest/common/index.js';
+import { Logger } from '@nestjs/common';
 import { vi } from 'vitest';
 import express from 'express';
-import { NestApplication } from '../../../@nest/core/nest-application.js';
+import { NestApplication } from '@nestjs/core';
 import { createServer } from 'node:http';
 
 @Module({})

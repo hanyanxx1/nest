@@ -1,6 +1,6 @@
 import { All, Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '../../../@nest/common/index.js';
+import { Logger } from '@nestjs/common';
 import { vi } from 'vitest';
 import request from 'supertest';
 
