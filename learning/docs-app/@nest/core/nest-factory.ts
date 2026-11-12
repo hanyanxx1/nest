@@ -51,7 +51,7 @@ export class NestFactory {
           throw new Error(`${providerType.name} Provider 实例未能创建`);
         }
 
-        applyPropertyDependencies(providerType, provider, context.providers);
+        applyPropertyDependencies(providerType, provider, context, moduleContexts);
       }
     }
 
@@ -97,7 +97,7 @@ export class NestFactory {
           });
 
           const controller = Reflect.construct(controllerType, argumentsForController) as object;
-          applyPropertyDependencies(controllerType, controller, context.providers);
+          applyPropertyDependencies(controllerType, controller, context, moduleContexts);
 
           return controller;
         }),
@@ -298,13 +298,21 @@ function isPropertyDependency(value: unknown): value is PropertyDependency {
   );
 }
 
-function applyPropertyDependencies(instanceType: Function, instance: object, providers: Map<Function, object>): void {
+function applyPropertyDependencies(
+  instanceType: Function,
+  instance: object,
+  context: ModuleContext,
+  moduleContexts: ModuleContext[],
+): void {
   for (const { key, type } of readPropertyDependencies(instanceType)) {
-    const dependency = providers.get(type);
+    const dependency = resolveProvider(context, type, moduleContexts);
     if (dependency === undefined) {
-      throw new Error(`${instanceType.name} 属性依赖的 ${type.name} 未在 providers 中注册`);
+      throw new Error(
+        `${instanceType.name} 属性依赖的 ${type.name} 未在 ${context.moduleType.name} 的 providers 或直接导入模块 exports 中注册`,
+      );
     }
 
+    // 把查找到的 Provider 实例赋给标记了 @Inject() 的属性。
     Object.assign(instance, { [key]: dependency });
   }
 }
