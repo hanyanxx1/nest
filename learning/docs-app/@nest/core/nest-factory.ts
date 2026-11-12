@@ -211,12 +211,13 @@ function resolveProvider(
   providerType: Function,
   moduleContexts: ModuleContext[],
 ): object | undefined {
+  // 先查当前模块自己的 Provider。
   const localProvider = context.providers.get(providerType);
   if (localProvider !== undefined) {
     return localProvider;
   }
 
-  // 只检查当前模块直接导入、且明确导出此 Provider 的模块。
+  // 本地没有时，只沿当前模块直接导入的模块查找。
   const importedModuleTypes = readClassMetadata(context.moduleType, 'imports');
 
   for (const importedModuleType of importedModuleTypes) {
@@ -226,16 +227,54 @@ function resolveProvider(
       throw new Error(`${context.moduleType.name} 导入的模块上下文未能收集`);
     }
 
-    if (!importedContext.exportTypes.includes(providerType)) {
-      continue;
+    const exportedProvider = findExportedProvider(importedContext, providerType, moduleContexts);
+    if (exportedProvider !== undefined) {
+      return exportedProvider;
     }
+  }
 
-    const exportedProvider = importedContext.providers.get(providerType);
+  return undefined;
+}
+
+function findExportedProvider(
+  moduleContext: ModuleContext,
+  providerType: Function,
+  moduleContexts: ModuleContext[],
+  visitedModuleTypes: Set<Function> = new Set<Function>(),
+): object | undefined {
+  // 防止再导出关系形成循环。
+  if (visitedModuleTypes.has(moduleContext.moduleType)) {
+    return undefined;
+  }
+  visitedModuleTypes.add(moduleContext.moduleType);
+
+  // 当前模块直接导出目标 Provider 时，返回它已有的实例。
+  if (moduleContext.exportTypes.includes(providerType)) {
+    const exportedProvider = moduleContext.providers.get(providerType);
     if (exportedProvider === undefined) {
-      throw new Error(`${importedContext.moduleType.name} 导出了 ${providerType.name}，但没有对应的 Provider 实例`);
+      throw new Error(`${moduleContext.moduleType.name} 导出了 ${providerType.name}，但没有对应的 Provider 实例`);
     }
 
     return exportedProvider;
+  }
+
+  // 只允许沿当前模块明确再导出的 imported module 继续查找。
+  const importedModuleTypes = readClassMetadata(moduleContext.moduleType, 'imports');
+
+  for (const importedModuleType of importedModuleTypes) {
+    if (!moduleContext.exportTypes.includes(importedModuleType)) {
+      continue;
+    }
+
+    const importedContext = moduleContexts.find((candidate) => candidate.moduleType === importedModuleType);
+    if (importedContext === undefined) {
+      throw new Error(`${moduleContext.moduleType.name} 再导出的模块上下文未能收集`);
+    }
+
+    const exportedProvider = findExportedProvider(importedContext, providerType, moduleContexts, visitedModuleTypes);
+    if (exportedProvider !== undefined) {
+      return exportedProvider;
+    }
   }
 
   return undefined;
