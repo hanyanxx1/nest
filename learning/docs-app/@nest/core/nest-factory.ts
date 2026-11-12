@@ -12,6 +12,14 @@ import { RouteConflictException } from './errors/exceptions/route-conflict.excep
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
 
+// 每个模块保留自己的 Provider Map；跨模块共享留到 exports 小节实现。
+type ModuleContext = {
+  moduleType: Function;
+  controllerTypes: Function[];
+  providerTypes: Function[];
+  providers: Map<Function, object>;
+};
+
 export class NestFactory {
   // options.rawBody 为 true 时，保留原始请求体，供 @RawBody() 读取。
   static async create(
@@ -26,22 +34,24 @@ export class NestFactory {
     const factoryLogger = new Logger(NestFactory.name);
     factoryLogger.log('Starting Nest application...');
 
-    const controllerTypes = readClassMetadata(moduleType, 'controllers');
-    const providerTypes = readClassMetadata(moduleType, 'providers');
+    const moduleContexts = collectModuleContexts(moduleType);
 
-    const providers = new Map<Function, object>();
-    for (const providerType of providerTypes) {
-      providers.set(providerType, Reflect.construct(providerType, []));
+    // 先创建所有模块各自的 Provider，再分别处理模块内的属性注入。
+    for (const context of moduleContexts) {
+      for (const providerType of context.providerTypes) {
+        context.providers.set(providerType, Reflect.construct(providerType, []));
+      }
     }
 
-    // 先创建所有 Provider 实例，再处理属性依赖，避免依赖注册顺序影响查找。
-    for (const providerType of providerTypes) {
-      const provider = providers.get(providerType);
-      if (provider === undefined) {
-        throw new Error(`${providerType.name} Provider 实例未能创建`);
-      }
+    for (const context of moduleContexts) {
+      for (const providerType of context.providerTypes) {
+        const provider = context.providers.get(providerType);
+        if (provider === undefined) {
+          throw new Error(`${providerType.name} Provider 实例未能创建`);
+        }
 
-      applyPropertyDependencies(providerType, provider, providers);
+        applyPropertyDependencies(providerType, provider, context.providers);
+      }
     }
 
     const httpServer = express();
@@ -64,29 +74,33 @@ export class NestFactory {
 
     // 控制器实例化仍在 create() 里，路由注册推迟到 app.init()。
     const registerRoutes = (): void => {
-      const controllers = controllerTypes.map((controllerType) => {
-        const dependencies = readConstructorDependencies(controllerType);
-        const optionalDependencyIndexes = readOptionalDependencies(controllerType);
+      const controllers = moduleContexts.flatMap((context) =>
+        context.controllerTypes.map((controllerType) => {
+          const dependencies = readConstructorDependencies(controllerType);
+          const optionalDependencyIndexes = readOptionalDependencies(controllerType);
 
-        const argumentsForController = dependencies.map((dependency, index) => {
-          const instance = providers.get(dependency);
-          if (instance !== undefined) {
-            return instance;
-          }
+          const argumentsForController = dependencies.map((dependency, index) => {
+            const instance = context.providers.get(dependency);
+            if (instance !== undefined) {
+              return instance;
+            }
 
-          // 只有标记为 Optional 的缺失依赖，才允许以 undefined 注入。
-          if (optionalDependencyIndexes.includes(index)) {
-            return undefined;
-          }
+            // 只有标记为 Optional 的缺失依赖，才允许以 undefined 注入。
+            if (optionalDependencyIndexes.includes(index)) {
+              return undefined;
+            }
 
-          throw new Error(`${controllerType.name} 依赖的 ${dependency.name} 未在 providers 中注册`);
-        });
+            throw new Error(
+              `${controllerType.name} 依赖的 ${dependency.name} 未在 ${context.moduleType.name} 模块 providers 中注册`,
+            );
+          });
 
-        const controller = Reflect.construct(controllerType, argumentsForController) as object;
-        applyPropertyDependencies(controllerType, controller, providers);
+          const controller = Reflect.construct(controllerType, argumentsForController) as object;
+          applyPropertyDependencies(controllerType, controller, context.providers);
 
-        return controller;
-      });
+          return controller;
+        }),
+      );
 
       const discoveredRoutes = controllers.flatMap((controller) => routerExplorer.getRoutes(controller));
 
@@ -152,7 +166,7 @@ export class NestFactory {
   }
 }
 
-function readClassMetadata(moduleType: Function, key: 'controllers' | 'providers'): Function[] {
+function readClassMetadata(moduleType: Function, key: 'imports' | 'controllers' | 'providers'): Function[] {
   const value: unknown = Reflect.getMetadata(key, moduleType);
   if (value === undefined) {
     return [];
@@ -161,6 +175,33 @@ function readClassMetadata(moduleType: Function, key: 'controllers' | 'providers
     return value;
   }
   throw new Error(`${moduleType.name} 的 ${key} 元数据必须是类数组`);
+}
+
+function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
+  const moduleContexts: ModuleContext[] = [];
+  const visitedModuleTypes = new Set<Function>();
+
+  const visit = (moduleType: Function): void => {
+    // 防止循环 imports 或重复导入同一个模块。
+    if (visitedModuleTypes.has(moduleType)) {
+      return;
+    }
+    visitedModuleTypes.add(moduleType);
+
+    moduleContexts.push({
+      moduleType,
+      controllerTypes: readClassMetadata(moduleType, 'controllers'),
+      providerTypes: readClassMetadata(moduleType, 'providers'),
+      providers: new Map<Function, object>(),
+    });
+
+    for (const importedModule of readClassMetadata(moduleType, 'imports')) {
+      visit(importedModule);
+    }
+  };
+
+  visit(rootModuleType);
+  return moduleContexts;
 }
 
 function readConstructorDependencies(controllerType: Function): Function[] {
