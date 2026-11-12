@@ -12,11 +12,12 @@ import { RouteConflictException } from './errors/exceptions/route-conflict.excep
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
 
-// 每个模块保留自己的 Provider Map；跨模块共享留到 exports 小节实现。
+// 每个模块保留自己的 Provider Map 和对外导出的 Provider 清单。
 type ModuleContext = {
   moduleType: Function;
   controllerTypes: Function[];
   providerTypes: Function[];
+  exportTypes: Function[];
   providers: Map<Function, object>;
 };
 
@@ -80,7 +81,7 @@ export class NestFactory {
           const optionalDependencyIndexes = readOptionalDependencies(controllerType);
 
           const argumentsForController = dependencies.map((dependency, index) => {
-            const instance = context.providers.get(dependency);
+            const instance = resolveProvider(context, dependency, moduleContexts);
             if (instance !== undefined) {
               return instance;
             }
@@ -91,7 +92,7 @@ export class NestFactory {
             }
 
             throw new Error(
-              `${controllerType.name} 依赖的 ${dependency.name} 未在 ${context.moduleType.name} 模块 providers 中注册`,
+              `${controllerType.name} 依赖的 ${dependency.name} 未在 ${context.moduleType.name} 的 providers 或直接导入模块 exports 中注册`,
             );
           });
 
@@ -166,7 +167,7 @@ export class NestFactory {
   }
 }
 
-function readClassMetadata(moduleType: Function, key: 'imports' | 'controllers' | 'providers'): Function[] {
+function readClassMetadata(moduleType: Function, key: 'imports' | 'controllers' | 'providers' | 'exports'): Function[] {
   const value: unknown = Reflect.getMetadata(key, moduleType);
   if (value === undefined) {
     return [];
@@ -192,6 +193,7 @@ function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
       moduleType,
       controllerTypes: readClassMetadata(moduleType, 'controllers'),
       providerTypes: readClassMetadata(moduleType, 'providers'),
+      exportTypes: readClassMetadata(moduleType, 'exports'),
       providers: new Map<Function, object>(),
     });
 
@@ -202,6 +204,41 @@ function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
 
   visit(rootModuleType);
   return moduleContexts;
+}
+
+function resolveProvider(
+  context: ModuleContext,
+  providerType: Function,
+  moduleContexts: ModuleContext[],
+): object | undefined {
+  const localProvider = context.providers.get(providerType);
+  if (localProvider !== undefined) {
+    return localProvider;
+  }
+
+  // 只检查当前模块直接导入、且明确导出此 Provider 的模块。
+  const importedModuleTypes = readClassMetadata(context.moduleType, 'imports');
+
+  for (const importedModuleType of importedModuleTypes) {
+    const importedContext = moduleContexts.find((candidate) => candidate.moduleType === importedModuleType);
+
+    if (importedContext === undefined) {
+      throw new Error(`${context.moduleType.name} 导入的模块上下文未能收集`);
+    }
+
+    if (!importedContext.exportTypes.includes(providerType)) {
+      continue;
+    }
+
+    const exportedProvider = importedContext.providers.get(providerType);
+    if (exportedProvider === undefined) {
+      throw new Error(`${importedContext.moduleType.name} 导出了 ${providerType.name}，但没有对应的 Provider 实例`);
+    }
+
+    return exportedProvider;
+  }
+
+  return undefined;
 }
 
 function readConstructorDependencies(controllerType: Function): Function[] {
