@@ -19,6 +19,7 @@ type ModuleContext = {
   providerTypes: Function[];
   exportTypes: Function[];
   providers: Map<Function, object>;
+  moduleInstance: object | undefined;
 };
 
 export class NestFactory {
@@ -53,6 +54,24 @@ export class NestFactory {
 
         applyPropertyDependencies(providerType, provider, context, moduleContexts);
       }
+    }
+
+    // Provider 实例和属性依赖都准备好后，再构造各个 Module。
+    for (const context of moduleContexts) {
+      const dependencies = readConstructorDependencies(context.moduleType);
+
+      const argumentsForModule = dependencies.map((dependency) => {
+        const instance = resolveProvider(context, dependency, moduleContexts);
+        if (instance !== undefined) {
+          return instance;
+        }
+
+        throw new Error(
+          `${context.moduleType.name} 依赖的 ${dependency.name} 未在其 providers 或可见导入模块 exports 中注册`,
+        );
+      });
+
+      context.moduleInstance = Reflect.construct(context.moduleType, argumentsForModule) as object;
     }
 
     const httpServer = express();
@@ -195,6 +214,7 @@ function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
       providerTypes: readClassMetadata(moduleType, 'providers'),
       exportTypes: readClassMetadata(moduleType, 'exports'),
       providers: new Map<Function, object>(),
+      moduleInstance: undefined,
     });
 
     for (const importedModule of readClassMetadata(moduleType, 'imports')) {
