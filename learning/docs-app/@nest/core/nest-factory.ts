@@ -7,14 +7,15 @@ import { NestApplication } from './nest-application.js';
 import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
 import { Logger, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
-import { OPTIONAL_DEPS_METADATA, PROPERTY_DEPS_METADATA } from '../common/constants.js';
+import { GLOBAL_MODULE_METADATA, OPTIONAL_DEPS_METADATA, PROPERTY_DEPS_METADATA } from '../common/constants.js';
 import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
 
-// 每个模块保留自己的 Provider Map 和对外导出的 Provider 清单。
+// 每个模块保存自己的 Provider Map，以及显式和全局绑定得到的导入模块。
 type ModuleContext = {
   moduleType: Function;
+  importedModuleTypes: Function[];
   controllerTypes: Function[];
   providerTypes: Function[];
   exportTypes: Function[];
@@ -208,8 +209,12 @@ function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
     }
     visitedModuleTypes.add(moduleType);
 
+    // 复制 imports 元数据，避免后续绑定全局模块时改写装饰器保存的原始数组。
+    const importedModuleTypes = [...readClassMetadata(moduleType, 'imports')];
+
     moduleContexts.push({
       moduleType,
+      importedModuleTypes,
       controllerTypes: readClassMetadata(moduleType, 'controllers'),
       providerTypes: readClassMetadata(moduleType, 'providers'),
       exportTypes: readClassMetadata(moduleType, 'exports'),
@@ -217,12 +222,29 @@ function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
       moduleInstance: undefined,
     });
 
-    for (const importedModule of readClassMetadata(moduleType, 'imports')) {
+    for (const importedModule of importedModuleTypes) {
       visit(importedModule);
     }
   };
 
   visit(rootModuleType);
+
+  // 先收集完显式 imports，才能知道本应用中有哪些全局模块。
+  const globalModuleTypes = moduleContexts
+    .filter((context) => Reflect.getMetadata(GLOBAL_MODULE_METADATA, context.moduleType) === true)
+    .map((context) => context.moduleType);
+
+  for (const context of moduleContexts) {
+    for (const globalModuleType of globalModuleTypes) {
+      // 全局模块不把自己加入自己的 imports；已有的显式导入也不重复添加。
+      if (context.moduleType === globalModuleType || context.importedModuleTypes.includes(globalModuleType)) {
+        continue;
+      }
+
+      context.importedModuleTypes.push(globalModuleType);
+    }
+  }
+
   return moduleContexts;
 }
 
@@ -238,7 +260,7 @@ function resolveProvider(
   }
 
   // 本地没有时，只沿当前模块直接导入的模块查找。
-  const importedModuleTypes = readClassMetadata(context.moduleType, 'imports');
+  const importedModuleTypes = context.importedModuleTypes;
 
   for (const importedModuleType of importedModuleTypes) {
     const importedContext = moduleContexts.find((candidate) => candidate.moduleType === importedModuleType);
@@ -279,7 +301,7 @@ function findExportedProvider(
   }
 
   // 只允许沿当前模块明确再导出的 imported module 继续查找。
-  const importedModuleTypes = readClassMetadata(moduleContext.moduleType, 'imports');
+  const importedModuleTypes = moduleContext.importedModuleTypes;
 
   for (const importedModuleType of importedModuleTypes) {
     if (!moduleContext.exportTypes.includes(importedModuleType)) {
