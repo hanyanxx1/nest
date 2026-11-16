@@ -1,6 +1,10 @@
 export interface ModuleMetadata {
-  imports?: Function[];
+  imports?: Array<Function | DynamicModule>;
   controllers?: Function[];
   providers?: Function[];
   exports?: Function[];
+}
+
+export interface DynamicModule extends ModuleMetadata {
+  module: Function;
 }

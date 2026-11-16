@@ -6,11 +6,13 @@ import { ExpressAdapter } from '../platform-express/adapters/express-adapter.js'
 import { NestApplication } from './nest-application.js';
 import { RouterExplorer } from './router/router-explorer.js';
 import { RouterResponseController } from './router/router-response-controller.js';
-import { Logger, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
+import { Logger, type DynamicModule, type RouteConflictPolicy, type RouteResolutionStrategy } from '../common/index.js';
 import { GLOBAL_MODULE_METADATA, OPTIONAL_DEPS_METADATA, PROPERTY_DEPS_METADATA } from '../common/constants.js';
 import { RouteConflictException } from './errors/exceptions/route-conflict.exception.js';
 import { RouteConflictDetector } from './router/route-conflict-detector.js';
 import { RouteSpecificitySorter } from './router/route-specificity-sorter.js';
+
+type ModuleReference = Function | DynamicModule;
 
 // 每个模块保存自己的 Provider Map，以及显式和全局绑定得到的导入模块。
 type ModuleContext = {
@@ -187,7 +189,7 @@ export class NestFactory {
   }
 }
 
-function readClassMetadata(moduleType: Function, key: 'imports' | 'controllers' | 'providers' | 'exports'): Function[] {
+function readClassMetadata(moduleType: Function, key: 'controllers' | 'providers' | 'exports'): Function[] {
   const value: unknown = Reflect.getMetadata(key, moduleType);
   if (value === undefined) {
     return [];
@@ -198,32 +200,75 @@ function readClassMetadata(moduleType: Function, key: 'imports' | 'controllers' 
   throw new Error(`${moduleType.name} 的 ${key} 元数据必须是类数组`);
 }
 
+function mergeClassMetadata(
+  moduleType: Function,
+  key: 'controllers' | 'providers' | 'exports',
+  dynamicMetadata: DynamicModule | undefined,
+): Function[] {
+  const staticTypes = readClassMetadata(moduleType, key);
+  const dynamicTypes = dynamicMetadata?.[key] ?? [];
+
+  if (!Array.isArray(dynamicTypes) || !dynamicTypes.every((item): item is Function => typeof item === 'function')) {
+    throw new Error(`${moduleType.name} 的动态 ${key} 元数据必须是类数组`);
+  }
+
+  return [...staticTypes, ...dynamicTypes];
+}
+
+function isDynamicModule(value: unknown): value is DynamicModule {
+  return typeof value === 'object' && value !== null && 'module' in value && typeof value.module === 'function';
+}
+
+function getModuleType(moduleReference: ModuleReference): Function {
+  return typeof moduleReference === 'function' ? moduleReference : moduleReference.module;
+}
+
+function readModuleImports(moduleType: Function): ModuleReference[] {
+  const value: unknown = Reflect.getMetadata('imports', moduleType);
+  if (value === undefined) {
+    return [];
+  }
+
+  if (
+    Array.isArray(value) &&
+    value.every((item): item is ModuleReference => typeof item === 'function' || isDynamicModule(item))
+  ) {
+    return value;
+  }
+
+  throw new Error(`${moduleType.name} 的 imports 元数据必须是 Module 或 DynamicModule 数组`);
+}
+
 function collectModuleContexts(rootModuleType: Function): ModuleContext[] {
   const moduleContexts: ModuleContext[] = [];
   const visitedModuleTypes = new Set<Function>();
 
-  const visit = (moduleType: Function): void => {
-    // 防止循环 imports 或重复导入同一个模块。
+  const visit = (moduleReference: ModuleReference): void => {
+    // 动态模块对象指向它实际代表的 Module 类。
+    const dynamicMetadata = typeof moduleReference === 'function' ? undefined : moduleReference;
+    const moduleType = getModuleType(moduleReference);
+
     if (visitedModuleTypes.has(moduleType)) {
       return;
     }
     visitedModuleTypes.add(moduleType);
 
-    // 复制 imports 元数据，避免后续绑定全局模块时改写装饰器保存的原始数组。
-    const importedModuleTypes = [...readClassMetadata(moduleType, 'imports')];
+    const importedModuleReferences = [...readModuleImports(moduleType)];
+    const importedModuleTypes = importedModuleReferences.map(getModuleType);
 
+    // // 合并 Module 类上的静态元数据与动态模块对象中的类元数据。
     moduleContexts.push({
       moduleType,
       importedModuleTypes,
-      controllerTypes: readClassMetadata(moduleType, 'controllers'),
-      providerTypes: readClassMetadata(moduleType, 'providers'),
-      exportTypes: readClassMetadata(moduleType, 'exports'),
+      controllerTypes: mergeClassMetadata(moduleType, 'controllers', dynamicMetadata),
+      providerTypes: mergeClassMetadata(moduleType, 'providers', dynamicMetadata),
+      exportTypes: mergeClassMetadata(moduleType, 'exports', dynamicMetadata),
       providers: new Map<Function, object>(),
       moduleInstance: undefined,
     });
 
-    for (const importedModule of importedModuleTypes) {
-      visit(importedModule);
+    for (const importedModuleReference of importedModuleReferences) {
+      visit(importedModuleReference);
     }
   };
 
