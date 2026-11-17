@@ -1,4 +1,4 @@
-import { Controller, Get, Module, Res, Response } from '@nestjs/common';
+import { Controller, Get, HttpCode, Module, Post, Res, Response } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import request from 'supertest';
 import type { Response as ExpressResponse } from 'express';
@@ -23,6 +23,19 @@ class NativeResponsesFixtureController {
   sendWithPassthrough(@Res({ passthrough: true }) response: ExpressResponse): { name: string } {
     response.status(202);
     response.setHeader('X-Cats-Mode', 'passthrough');
+    return { name: 'Mimi' };
+  }
+
+  @Post('passthrough-post')
+  createWithPassthrough(@Res({ passthrough: true }) response: ExpressResponse): { name: string } {
+    response.status(202);
+    return { name: 'Mimi' };
+  }
+
+  @Get('passthrough-http-code')
+  @HttpCode(204)
+  getWithExplicitStatusAndPassthrough(@Res({ passthrough: true }) response: ExpressResponse): { name: string } {
+    response.status(202);
     return { name: 'Mimi' };
   }
 
@@ -73,5 +86,19 @@ describe('Routing (native responses)', () => {
     await app.init();
 
     await request(app.getHttpServer()).get('/cats/response-alias').expect(200).expect('Sent by response alias');
+  });
+
+  it('uses the POST default status after passthrough sets another status', async () => {
+    const app = await NestFactory.create(NativeResponsesFixtureModule);
+    await app.init();
+
+    await request(app.getHttpServer()).post('/cats/passthrough-post').expect(201).expect({ name: 'Mimi' });
+  });
+
+  it('uses @HttpCode after passthrough sets another status', async () => {
+    const app = await NestFactory.create(NativeResponsesFixtureModule);
+    await app.init();
+
+    await request(app.getHttpServer()).get('/cats/passthrough-http-code').expect(204);
   });
 });
